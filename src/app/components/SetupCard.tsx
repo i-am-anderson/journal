@@ -58,7 +58,7 @@ function SetupCard({
               Rules
             </p>
             <ul className="space-y-1.5">
-              {setup.rules.map((rule, i) => (
+              {setup.rules.slice(0, 2).map((rule, i) => (
                 <li
                   key={i}
                   className="flex items-start gap-2 text-xs text-foreground/80"
@@ -75,6 +75,11 @@ function SetupCard({
                   {rule}
                 </li>
               ))}
+              {setup.rules.length > 2 && (
+                <li className="text-[10px] font-mono text-muted-foreground/60 pl-4">
+                  + {setup.rules.length - 2} more rules
+                </li>
+              )}
             </ul>
           </div>
         )}

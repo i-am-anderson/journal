@@ -2,16 +2,20 @@ import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { uid } from "../helpers/utils";
 import { StrategyModalProps } from "../types";
-import { SETUP_COLORS } from "../helpers/constants"; // Reutilizando as cores
 
 /* ══════════════════════════════════════════════════════════════════════
   SHARED UI
 ══════════════════════════════════════════════════════════════════════ */
-function StrategyModal({ initial, onClose, onSave }: StrategyModalProps) {
+function StrategyModal({
+  initial,
+  onClose,
+  onSave,
+  colors,
+}: StrategyModalProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [principles, setPrinciples] = useState(initial?.principles ?? [""]);
-  const [color, setColor] = useState(initial?.color ?? SETUP_COLORS[0]);
+  const [color, setColor] = useState(initial?.color ?? colors[0]);
 
   function addPrinciple() {
     setPrinciples((p) => [...p, ""]);
@@ -71,7 +75,7 @@ function StrategyModal({ initial, onClose, onSave }: StrategyModalProps) {
               Color Identifier
             </label>
             <div className="flex gap-2 flex-wrap">
-              {SETUP_COLORS.map((c) => (
+              {colors.map((c) => (
                 <button
                   key={c}
                   onClick={() => setColor(c)}

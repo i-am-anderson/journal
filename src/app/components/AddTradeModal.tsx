@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { AddTradeModalProps } from "../types";
+import { AddTradeModalProps, Side } from "../types";
 import { uid, pnlColor, fmtPnl } from "../helpers/utils";
 import { X, Upload, Check } from "lucide-react";
 
@@ -7,26 +7,46 @@ import { X, Upload, Check } from "lucide-react";
   SHARED UI
 ══════════════════════════════════════════════════════════════════════ */
 function AddTradeModal({
+  accountId,
   setups,
   strategies,
   onClose,
   onSave,
+  availableErrorTags,
+  availableEmotions,
+  initialTrade,
 }: AddTradeModalProps) {
-  const today = new Date().toISOString().split("T")[0];
+  // Calcula a data atual formatada para <input type="datetime-local">
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  const defaultDateTime = now.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
+
+  // Se houver initialTrade (modo edição), converte o ISO salvo de volta para o formato do input local
+  let initDateTime = defaultDateTime;
+  if (initialTrade && initialTrade.date) {
+    const d = new Date(initialTrade.date);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    initDateTime = d.toISOString().slice(0, 16);
+  }
+
+  // Preenche o formulário com dados em branco (novo trade) ou dados do trade existente
   const [form, setForm] = useState({
-    date: today,
-    symbol: "",
-    side: "long",
-    entry: "",
-    exit: "",
-    size: "",
-    stopLoss: "",
-    takeProfit: "",
-    strategy: strategies[0] || "Breakout",
-    setupId: setups[0]?.id ?? "",
-    notes: "",
-    images: [],
+    date: initDateTime,
+    symbol: initialTrade?.symbol || "",
+    side: initialTrade?.side || "long",
+    entry: initialTrade?.entry || "",
+    exit: initialTrade?.exit || "",
+    size: initialTrade?.size || "",
+    stopLoss: initialTrade?.stopLoss || "",
+    takeProfit: initialTrade?.takeProfit || "",
+    strategy: initialTrade?.strategy || strategies[0]?.name || "None",
+    setupId: initialTrade?.setupId || setups[0]?.id || "",
+    notes: initialTrade?.notes || "",
+    errorTags: initialTrade?.errorTags || [],
+    emotion: initialTrade?.emotion || "",
+    images: initialTrade?.images || [],
   });
+
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -35,9 +55,9 @@ function AddTradeModal({
   }
 
   const livePnl = useMemo(() => {
-    const e = parseFloat(form.entry),
-      x = parseFloat(form.exit),
-      s = parseFloat(form.size);
+    const e = parseFloat(form.entry as string),
+      x = parseFloat(form.exit as string),
+      s = parseFloat(form.size as string);
     if (!e || !x || !s || isNaN(e) || isNaN(x) || isNaN(s)) return null;
     const dir = form.side === "long" ? 1 : -1;
     return { val: (x - e) * s * dir, pct: ((x - e) / e) * 100 * dir };
@@ -58,9 +78,10 @@ function AddTradeModal({
   }
 
   function submit() {
-    const entry = parseFloat(form.entry),
-      exit = parseFloat(form.exit),
-      size = parseFloat(form.size);
+    const entry = parseFloat(form.entry as string),
+      exit = parseFloat(form.exit as string),
+      size = parseFloat(form.size as string);
+
     if (
       !form.symbol ||
       isNaN(entry) ||
@@ -69,27 +90,36 @@ function AddTradeModal({
       !form.date
     )
       return;
+
     const dir = form.side === "long" ? 1 : -1;
     const pnl = parseFloat(((exit - entry) * size * dir).toFixed(2));
     const pnlPct = parseFloat(
       (((exit - entry) / entry) * 100 * dir).toFixed(2),
     );
+
+    const finalIsoDate = new Date(form.date).toISOString();
+
     onSave({
-      id: uid(),
-      date: form.date,
+      id: initialTrade?.id || uid(), // Se é edição mantém o ID, senão cria um novo!
+      accountId: initialTrade?.accountId || accountId, // Mantém a conta original se for edição
+      date: finalIsoDate,
       symbol: form.symbol.trim().toUpperCase(),
-      side: form.side,
+      side: form.side as Side,
       entry,
       exit,
       size,
-      stopLoss: form.stopLoss ? parseFloat(form.stopLoss) : undefined,
-      takeProfit: form.takeProfit ? parseFloat(form.takeProfit) : undefined,
+      stopLoss: form.stopLoss ? parseFloat(form.stopLoss as string) : undefined,
+      takeProfit: form.takeProfit
+        ? parseFloat(form.takeProfit as string)
+        : undefined,
       pnl,
       pnlPct,
       strategy: form.strategy,
       setupId: form.setupId,
       notes: form.notes.trim(),
       images: form.images,
+      errorTags: form.errorTags,
+      emotion: form.emotion,
       status: pnl > 0 ? "win" : pnl < 0 ? "loss" : "breakeven",
     });
   }
@@ -97,21 +127,26 @@ function AddTradeModal({
   const isValid =
     form.symbol.trim() &&
     form.entry &&
-    !isNaN(parseFloat(form.entry)) &&
+    !isNaN(parseFloat(form.entry as string)) &&
     form.exit &&
-    !isNaN(parseFloat(form.exit)) &&
+    !isNaN(parseFloat(form.exit as string)) &&
     form.size &&
-    !isNaN(parseFloat(form.size)) &&
+    !isNaN(parseFloat(form.size as string)) &&
     form.date;
 
   const inputCls =
     "w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40 transition-colors";
 
+  // Textos dinâmicos dependendo se estamos criando ou editando
+  const isEditing = !!initialTrade;
+  const modalTitle = isEditing ? "Edit Trade" : "New Trade";
+  const submitText = isEditing ? "Update Trade" : "Save Trade";
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="bg-card border border-border rounded-2xl w-full max-w-xl max-h-[92vh] flex flex-col shadow-2xl shadow-black/60">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-          <h2 className="font-semibold text-sm tracking-tight">New Trade</h2>
+          <h2 className="font-semibold text-sm tracking-tight">{modalTitle}</h2>
           <button
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground transition-colors"
@@ -124,10 +159,10 @@ function AddTradeModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
-                Date
+                Date & Time
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 value={form.date}
                 onChange={(e) => set("date", e.target.value)}
                 className={`${inputCls} date-input`}
@@ -309,7 +344,7 @@ function AddTradeModal({
               Strategy Category
             </label>
             <select
-              value={form.strategy.name}
+              value={form.strategy}
               onChange={(e) => set("strategy", e.target.value)}
               className={`${inputCls} cursor-pointer`}
             >
@@ -319,6 +354,61 @@ function AddTradeModal({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* BLOCO: EMOCIONAL */}
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-2">
+              Sentiment
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {availableEmotions.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => set("emotion", e)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    form.emotion === e
+                      ? "bg-emerald-400/10 border-emerald-400 text-emerald-400"
+                      : "bg-secondary/50 border-border text-muted-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* BLOCO: TAGS DE ERRO */}
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-2">
+              Error Tags
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {availableErrorTags.map((tag: string) => {
+                const isSelected = (form.errorTags as string[])?.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      const current = form.errorTags || [];
+                      const next = isSelected
+                        ? current.filter((t: string) => t !== tag)
+                        : [...current, tag];
+                      set("errorTags", next);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      isSelected
+                        ? "bg-red-400/10 border-red-400 text-red-400"
+                        : "bg-secondary/50 border-border text-muted-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>
@@ -417,7 +507,7 @@ function AddTradeModal({
             disabled={!isValid}
             className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-emerald-400 text-black hover:bg-emerald-300 transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
           >
-            Save Trade
+            {submitText}
           </button>
         </div>
       </div>

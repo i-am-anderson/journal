@@ -13,6 +13,28 @@ export const DAYS = [
   "Saturday",
 ];
 
+export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "Daily", "Weekly"];
+
+export const MARKETS = [
+  "Stocks",
+  "Crypto",
+  "Forex",
+  "Futures",
+  "Options",
+  "All",
+];
+
+export const SETUP_COLORS = [
+  "#34d399",
+  "#60a5fa",
+  "#f59e0b",
+  "#a78bfa",
+  "#f87171",
+  "#38bdf8",
+  "#fb923c",
+  "#e879f9",
+];
+
 export const SEED_STRATEGIES: Strategy[] = [
   {
     id: "strat-breakout",
@@ -111,32 +133,10 @@ export const SEED_STRATEGIES: Strategy[] = [
   },
 ];
 
-export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "Daily", "Weekly"];
-
-export const MARKETS = [
-  "Stocks",
-  "Crypto",
-  "Forex",
-  "Futures",
-  "Options",
-  "All",
-];
-
-export const SETUP_COLORS = [
-  "#34d399",
-  "#60a5fa",
-  "#f59e0b",
-  "#a78bfa",
-  "#f87171",
-  "#38bdf8",
-  "#fb923c",
-  "#e879f9",
-];
-
 export const SEED_SETUPS = [
   {
     id: "s1",
-    name: "Bull Flag Breakout",
+    name: "Bull Flag Breakout (15m)",
     description:
       "Buy the first pullback after a strong momentum move. Wait for consolidation and enter on breakout of the flag structure.",
     rules: [
@@ -151,7 +151,7 @@ export const SEED_SETUPS = [
   },
   {
     id: "s2",
-    name: "HTF Support Bounce",
+    name: "HTF Support Bounce (1h)",
     description:
       "Fade to a key higher-timeframe support level and wait for a reversal candle confirmation before entering long.",
     rules: [
@@ -166,7 +166,7 @@ export const SEED_SETUPS = [
   },
   {
     id: "s3",
-    name: "Macro Short Squeeze",
+    name: "Macro Short Squeeze (1D)",
     description:
       "Use macro catalysts (CPI, FOMC) to position against crowded short trades near key resistance.",
     rules: [
@@ -185,7 +185,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t1",
     accountId: 1,
-    date: "2026-06-01",
+    date: "2026-06-01T10:25:00.000",
     symbol: "NVDA",
     side: "long",
     entry: 875.5,
@@ -205,7 +205,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t2",
     accountId: 1,
-    date: "2026-06-02",
+    date: "2026-06-02T14:30:00.000",
     symbol: "AAPL",
     side: "short",
     entry: 189.2,
@@ -225,7 +225,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t3",
     accountId: 1,
-    date: "2026-06-03",
+    date: "2026-06-03T09:00:00.000",
     symbol: "BTC/USD",
     side: "long",
     entry: 67450,
@@ -245,7 +245,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t4",
     accountId: 1,
-    date: "2026-06-04",
+    date: "2026-06-04T09:00:00.000",
     symbol: "TSLA",
     side: "long",
     entry: 248.6,
@@ -263,7 +263,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t5",
     accountId: 1,
-    date: "2026-06-05",
+    date: "2026-06-05T09:30:00.000",
     symbol: "SPY",
     side: "short",
     entry: 542.3,
@@ -283,7 +283,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t6",
     accountId: 1,
-    date: "2026-06-06",
+    date: "2026-06-06T10:15:00.000",
     symbol: "ETH/USD",
     side: "long",
     entry: 3280,
@@ -303,7 +303,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t7",
     accountId: 1,
-    date: "2026-06-09",
+    date: "2026-06-09T11:00:00.000",
     symbol: "MSFT",
     side: "long",
     entry: 418.5,
@@ -323,7 +323,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t8",
     accountId: 1,
-    date: "2026-06-10",
+    date: "2026-06-10T10:00:00.000",
     symbol: "NVDA",
     side: "short",
     entry: 925.0,
@@ -343,7 +343,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t9",
     accountId: 1,
-    date: "2026-06-11",
+    date: "2026-06-11T11:00:00.000",
     symbol: "AAPL",
     side: "long",
     entry: 191.8,
@@ -363,7 +363,7 @@ export const SEED_TRADES: Trade[] = [
   {
     id: "t10",
     accountId: 2,
-    date: "2026-06-12",
+    date: "2026-06-12T10:00:00.000",
     symbol: "BTC/USD",
     side: "long",
     entry: 70100,
@@ -385,4 +385,19 @@ export const SEED_TRADES: Trade[] = [
 export const SEED_ACCOUNTS = [
   { id: 1, name: "Daytrade (Futures)" },
   { id: 2, name: "Swing Trade (Stocks)" },
+];
+
+export const ERROR_TAGS = [
+  "Antecipação",
+  "Stop Curto",
+  "Gain Curto",
+  "Fora do Setup",
+];
+
+export const EMOTIONS = [
+  "Calmo",
+  "Ansioso",
+  "Focado",
+  "Vingativo",
+  "Desatento",
 ];

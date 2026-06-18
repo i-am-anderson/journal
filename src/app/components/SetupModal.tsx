@@ -2,18 +2,24 @@ import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { uid } from "../helpers/utils";
 import { SetupModalProps } from "../types";
-import { MARKETS, SETUP_COLORS, TIMEFRAMES } from "../helpers/constants";
 
 /* ══════════════════════════════════════════════════════════════════════
   SHARED UI
 ══════════════════════════════════════════════════════════════════════ */
-function SetupModal({ initial, onClose, onSave }: SetupModalProps) {
+function SetupModal({
+  initial,
+  onClose,
+  onSave,
+  markets,
+  colors,
+  timeframes,
+}: SetupModalProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [rules, setRules] = useState(initial?.rules ?? [""]);
   const [timeframe, setTimeframe] = useState(initial?.timeframe ?? "Daily");
-  const [markets, setMarkets] = useState(initial?.markets ?? "All");
-  const [color, setColor] = useState(initial?.color ?? SETUP_COLORS[0]);
+  const [markets_, setMarkets_] = useState(initial?.markets ?? "All");
+  const [color, setColor] = useState(initial?.color ?? colors[0]);
 
   function addRule() {
     setRules((r) => [...r, ""]);
@@ -33,7 +39,7 @@ function SetupModal({ initial, onClose, onSave }: SetupModalProps) {
       description: description.trim(),
       rules: rules.map((r) => r.trim()).filter(Boolean),
       timeframe,
-      markets,
+      markets: markets_,
       color,
     });
   }
@@ -75,7 +81,7 @@ function SetupModal({ initial, onClose, onSave }: SetupModalProps) {
               Color
             </label>
             <div className="flex gap-2 flex-wrap">
-              {SETUP_COLORS.map((c) => (
+              {colors.map((c) => (
                 <button
                   key={c}
                   onClick={() => setColor(c)}
@@ -103,7 +109,7 @@ function SetupModal({ initial, onClose, onSave }: SetupModalProps) {
                 onChange={(e) => setTimeframe(e.target.value)}
                 className={`${inputCls} cursor-pointer`}
               >
-                {TIMEFRAMES.map((t) => (
+                {timeframes.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
@@ -115,11 +121,11 @@ function SetupModal({ initial, onClose, onSave }: SetupModalProps) {
                 Markets
               </label>
               <select
-                value={markets}
-                onChange={(e) => setMarkets(e.target.value)}
+                value={markets_}
+                onChange={(e) => setMarkets_(e.target.value)}
                 className={`${inputCls} cursor-pointer`}
               >
-                {MARKETS.map((m) => (
+                {markets.map((m) => (
                   <option key={m} value={m}>
                     {m}
                   </option>

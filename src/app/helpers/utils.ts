@@ -20,9 +20,16 @@ export function uid() {
 }
 
 export function fmtDate(d: string) {
-  return new Date(d + "T12:00:00").toLocaleDateString("en-US", {
+  return new Date(d).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+  });
+}
+
+export function fmtTime(d: string) {
+  return new Date(d).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }

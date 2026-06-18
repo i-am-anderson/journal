@@ -5,7 +5,6 @@ import EquityChart from "../components/EquityChart";
 import { fmtPnl, pnlColor } from "../helpers/utils";
 
 import { DashboardPageProps } from "../types";
-import { DAYS } from "../helpers/constants";
 
 /* ══════════════════════════════════════════════════════════════════════
   PAGE — Dashboard
@@ -16,6 +15,7 @@ function DashboardPage({
   equityData,
   setups,
   onViewAll,
+  days,
 }: DashboardPageProps) {
   const advStats = useAdvancedStats(trades);
 
@@ -47,18 +47,18 @@ function DashboardPage({
 
     trades.forEach((t) => {
       // Ajuste de fuso horário UTC seguro para o parse de data YYYY-MM-DD
-      const day = new Date(t.date + "T12:00:00").getDay();
+      const day = new Date(t.date).getDay();
       pnlMap[day] += t.pnl;
       countMap[day] += 1;
     });
 
     // Ordenado de Segunda a Domingo
     return [1, 2, 3, 4, 5, 6, 0].map((day) => ({
-      name: DAYS[day],
+      name: days[day],
       pnl: pnlMap[day],
       trades: countMap[day],
     }));
-  }, [trades]);
+  }, [trades, days]);
 
   const maxWeekdayPnl = useMemo(() => {
     return Math.max(...weekdayStats.map((d) => Math.abs(d.pnl)), 1);

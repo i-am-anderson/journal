@@ -9,6 +9,8 @@ import {
   Layers,
   Target,
   FileSignature,
+  Trash2,
+  Settings,
 } from "lucide-react";
 
 import JournalPage from "./pages/JournalPage";
@@ -17,22 +19,27 @@ import StatsPage from "./pages/StatsPage";
 import SetupsPage from "./pages/SetupsPage";
 import StrategiesPage from "./pages/StrategiesPage";
 import TradingPlanPage from "./pages/TradingPlanPage";
+import ConfigsPage from "./pages/ConfigsPage";
 import SetupModal from "./components/SetupModal";
 import StrategyModal from "./components/StrategyModal";
 import AddTradeModal from "./components/AddTradeModal";
 
 import { fmtPnl, pnlColor } from "./helpers/utils";
-import { SEED_TRADES, SEED_SETUPS, SEED_STRATEGIES } from "./helpers/constants";
+import {
+  DAYS,
+  TIMEFRAMES,
+  MARKETS,
+  SETUP_COLORS,
+  ERROR_TAGS,
+  EMOTIONS,
+  SEED_TRADES,
+  SEED_SETUPS,
+  SEED_STRATEGIES,
+} from "./helpers/constants";
 
 // 1. APENAS PARA REFERÊNCIA VISUAL DA MUDANÇA DE TIPO
 import { Trade, Setup, EquityPoint, Strategy, Account } from "./types";
 
-/* Seus SEEDS de contas agora devem ser numéricos:
-export const SEED_ACCOUNTS = [
-  { id: 1, name: "Daytrade (Futures)" },
-  { id: 2, name: "Swing Trade (Stocks)" },
-];
-*/
 const SEED_ACCOUNTS_NUMERIC: Account[] = [
   { id: 1, name: "Daytrade (Futures)" },
   { id: 2, name: "Swing Trade (Stocks)" },
@@ -67,6 +74,16 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSetup, setFilterSetup] = useState("all");
   const [filterDay, setFilterDay] = useState("all");
+
+  // Filtros de Configs
+  const [days, setDays] = useState<string[]>(DAYS);
+  const [timeframes, setTimeframes] = useState<string[]>(TIMEFRAMES);
+  const [markets, setMarkets] = useState<string[]>(MARKETS);
+  const [colors, setColors] = useState<string[]>(SETUP_COLORS);
+  const [errorTags, setErrorTags] = useState<string[]>(ERROR_TAGS);
+  const [emotions, setEmotions] = useState<string[]>(EMOTIONS);
+
+  const [editingTrade, setEditingTrade] = useState<any | null>(null);
 
   // ══════════════════════════════════════════════════════════════════════
   //  FILTRO DE CONTEXTO NUMÉRICO
@@ -133,7 +150,7 @@ export default function App() {
         if (filterStatus !== "all" && t.status !== filterStatus) return false;
         if (filterSetup !== "all" && t.setupId !== filterSetup) return false;
         if (filterDay !== "all") {
-          const day = new Date(t.date + "T12:00:00").getDay();
+          const day = new Date(t.date).getDay();
           if (day.toString() !== filterDay) return false;
         }
         return true;
@@ -167,6 +184,7 @@ export default function App() {
         const matchingStrat = strategies.find(
           (st) => st.id === key || st.name === key,
         );
+
         return {
           name: matchingStrat ? matchingStrat.name : key,
           trades: s.trades,
@@ -195,6 +213,27 @@ export default function App() {
     setShowAddAccount(false);
   }
 
+  function handleDeleteAccount() {
+    if (activeAccountId === -1) return; // Proteção: não deletar a visão 'all'
+
+    const accToDelete = accounts.find((a) => a.id === activeAccountId);
+    if (!accToDelete) return;
+
+    // Confirmação de segurança nativa do navegador
+    const confirmDelete = window.confirm(
+      `ATENÇÃO: Você tem certeza que deseja excluir o ambiente "${accToDelete.name}"?\n\nIsso apagará PERMANENTEMENTE todos os trades vinculados a ele!`,
+    );
+
+    if (confirmDelete) {
+      // 1. Remove a conta da lista
+      setAccounts((prev) => prev.filter((a) => a.id !== activeAccountId));
+      // 2. Apaga todos os trades daquela conta (evita trades fantasmas)
+      setTrades((prev) => prev.filter((t) => t.accountId !== activeAccountId));
+      // 3. Retorna a visualização para "All Accounts"
+      setActiveAccountId(-1);
+    }
+  }
+
   const navItems = [
     {
       id: "dashboard",
@@ -210,6 +249,7 @@ export default function App() {
       label: "Trading Plan",
       icon: <FileSignature size={15} />,
     },
+    { id: "configs", label: "Settings", icon: <Settings size={15} /> },
   ];
 
   return (
@@ -225,7 +265,7 @@ export default function App() {
           </span>
         </div>
 
-        {/* SELETOR DE AMBIENTES ATUALIZADO PARA SUPORTAR VALUE DO TIPO NUMBER */}
+        {/* SELETOR DE AMBIENTES ATUALIZADO */}
         <div className="px-4 py-3.5 border-b border-border bg-secondary/10 space-y-1.5">
           <label className="block text-[9px] font-mono uppercase tracking-[0.12em] text-muted-foreground">
             Active Environment
@@ -233,9 +273,8 @@ export default function App() {
           <div className="flex items-center gap-1.5">
             <select
               value={activeAccountId}
-              // IMPORTANTE: HTML nativamente devolve string, por isso convertemos com Number()
               onChange={(e) => setActiveAccountId(Number(e.target.value))}
-              className="flex-1 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40 cursor-pointer"
+              className="flex-1 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40 cursor-pointer w-full min-w-0"
             >
               <option value={-1}>All Accounts</option>
               {accounts.map((acc) => (
@@ -244,13 +283,25 @@ export default function App() {
                 </option>
               ))}
             </select>
+
             <button
               onClick={() => setShowAddAccount(true)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all"
+              className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all"
               title="Create new environment"
             >
               <Plus size={13} />
             </button>
+
+            {/* O botão de apagar só aparece se houver uma conta selecionada (diferente de -1) */}
+            {activeAccountId !== -1 && (
+              <button
+                onClick={handleDeleteAccount}
+                className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center border border-border bg-background text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-all"
+                title="Delete current environment"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -316,7 +367,9 @@ export default function App() {
                       ? "Setups Playbook"
                       : view === "strategies"
                         ? "Strategies Playbook"
-                        : "Trading Plan"}{" "}
+                        : view === "configs"
+                          ? "Settings"
+                          : "Trading Plan"}{" "}
             </h1>
             <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
               Scope:{" "}
@@ -327,8 +380,21 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-emerald-400 text-black text-sm font-semibold hover:bg-emerald-300 transition-colors"
+              onClick={() => {
+                if (accounts.length === 0) {
+                  alert(
+                    "⚠️ Você não possui nenhum ambiente ativo! Crie uma conta antes de registrar seus trades.",
+                  );
+                  setShowAddAccount(true); // Abre automaticamente o modal de criar conta
+                  return;
+                }
+                setShowAdd(true);
+              }}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                accounts.length === 0
+                  ? "bg-secondary text-muted-foreground cursor-not-allowed opacity-60"
+                  : "bg-emerald-400 text-black hover:bg-emerald-300"
+              }`}
             >
               <Plus size={14} />
               New Trade
@@ -344,6 +410,7 @@ export default function App() {
               equityData={equityData}
               setups={setups}
               onViewAll={() => setView("journal")}
+              days={days}
             />
           )}
           {view === "journal" && (
@@ -356,6 +423,10 @@ export default function App() {
               onDelete={(id) => {
                 setTrades((prev) => prev.filter((t) => t.id !== id));
                 if (expandedId === id) setExpandedId(null);
+              }}
+              onEditRequest={(trade) => {
+                setEditingTrade(trade);
+                setShowAdd(true);
               }}
               onLightbox={setLightboxImg}
               searchQuery={searchQuery}
@@ -370,6 +441,7 @@ export default function App() {
               setFilterSetup={setFilterSetup}
               filterDay={filterDay}
               setFilterDay={setFilterDay}
+              days={days}
             />
           )}
           {view === "stats" && (
@@ -377,6 +449,7 @@ export default function App() {
               stats={stats}
               strategyStats={strategyStats}
               trades={accountTrades}
+              days={days}
             />
           )}
           {view === "setups" && (
@@ -402,6 +475,22 @@ export default function App() {
             />
           )}
           {view === "trading-plan" && <TradingPlanPage />}
+          {view === "configs" && (
+            <ConfigsPage
+              days={days}
+              setDays={setDays}
+              timeframes={timeframes}
+              setTimeframes={setTimeframes}
+              markets={markets}
+              setMarkets={setMarkets}
+              colors={colors}
+              setColors={setColors}
+              errorTags={errorTags}
+              setErrorTags={setErrorTags}
+              emotions={emotions}
+              setEmotions={setEmotions}
+            />
+          )}
         </div>
       </main>
 
@@ -447,18 +536,29 @@ export default function App() {
       {/* Outros Modals */}
       {showAdd && (
         <AddTradeModal
+          accountId={activeAccountId === -1 ? accounts[0].id : activeAccountId}
+          availableErrorTags={errorTags}
+          availableEmotions={emotions}
           setups={setups}
           strategies={strategies}
-          onClose={() => setShowAdd(false)}
-          onSave={(trade) => {
-            // Se estiver em "All Accounts" (-1), direcionamos para a primeira conta da lista por segurança
-            const targetAccountId =
-              activeAccountId === -1 ? (accounts[0]?.id ?? 1) : activeAccountId;
-            setTrades((prev) => [
-              { ...trade, accountId: targetAccountId },
-              ...prev,
-            ]);
+          initialTrade={editingTrade} // <-- Injeta os dados se for edição, ou null se for novo
+          onClose={() => {
             setShowAdd(false);
+            setEditingTrade(null); // Limpa o estado ao fechar
+          }}
+          onSave={(savedTrade) => {
+            if (editingTrade) {
+              // MODO EDIÇÃO: Atualiza o trade existente no array
+              setTrades((prev) =>
+                prev.map((t) => (t.id === savedTrade.id ? savedTrade : t)),
+              );
+            } else {
+              // MODO CRIAÇÃO: Adiciona o novo trade no início do array
+              setTrades((prev) => [savedTrade, ...prev]);
+            }
+
+            setShowAdd(false);
+            setEditingTrade(null); // Limpa o estado após salvar
           }}
         />
       )}
@@ -476,6 +576,9 @@ export default function App() {
             });
             setSetupModal(null);
           }}
+          markets={markets}
+          colors={colors}
+          timeframes={timeframes}
         />
       )}
 
@@ -492,6 +595,7 @@ export default function App() {
             });
             setStrategyModal(null);
           }}
+          colors={colors}
         />
       )}
 

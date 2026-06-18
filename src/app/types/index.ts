@@ -1,6 +1,13 @@
-export type Side = "long" | "short";
+// ─── Primitivos e utilitários ────────────────────────────────────────────────
 
-export type Status = "win" | "loss" | "open";
+export type Side = "long" | "short";
+export type Status = "win" | "loss" | "breakeven";
+export type Tone = "green" | "red" | "neutral";
+
+/** Handler genérico para setters simples — elimina repetição nos Props abaixo */
+type Setter<T> = (value: T) => void;
+
+// ─── Entidades de domínio ─────────────────────────────────────────────────────
 
 export type Trade = {
   id: string;
@@ -20,6 +27,8 @@ export type Trade = {
   takeProfit?: number;
   notes?: string;
   images?: string[];
+  emotion?: string;
+  errorTags?: string[];
 };
 
 export type Setup = {
@@ -32,27 +41,20 @@ export type Setup = {
   markets: string;
 };
 
-export type JournalPageProps = {
-  trades: Trade[];
-  setups: Setup[];
-  strategies: Strategy[];
-  expandedId: string | null;
-  setExpandedId: (id: string | null) => void;
-  onDelete: (id: string) => void;
-  onLightbox: (id: string) => void;
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
-  filterSide: string;
-  setFilterSide: (side: string) => void;
-  filterStrategy: string;
-  setFilterStrategy: (strategy: string) => void;
-  filterStatus: string;
-  setFilterStatus: (status: string) => void;
-  filterSetup: string;
-  setFilterSetup: (setup: string) => void;
-  filterDay: string;
-  setFilterDay: (day: string) => void;
+export type Strategy = {
+  id: string;
+  name: string;
+  description: string;
+  principles: string[];
+  color: string;
 };
+
+export type Account = {
+  id: number;
+  name: string;
+};
+
+// ─── Agregados / derivados ────────────────────────────────────────────────────
 
 export type Stats = {
   total: number;
@@ -72,14 +74,6 @@ export type EquityPoint = {
   pnl: number;
 };
 
-export type DashboardPageProps = {
-  trades: Trade[];
-  stats: Stats;
-  equityData: EquityPoint[];
-  setups: Setup[];
-  onViewAll: () => void;
-};
-
 export type StrategyStats = {
   name: string;
   trades: number;
@@ -87,74 +81,125 @@ export type StrategyStats = {
   winRate: number;
 };
 
+// ─── Props de páginas ─────────────────────────────────────────────────────────
+
+/** Filtros do Journal — isolados para reaproveitamento */
+export type JournalFilters = {
+  searchQuery: string;
+  setSearchQuery: Setter<string>;
+  filterSide: string;
+  setFilterSide: Setter<string>;
+  filterStrategy: string;
+  setFilterStrategy: Setter<string>;
+  filterStatus: string;
+  setFilterStatus: Setter<string>;
+  filterSetup: string;
+  setFilterSetup: Setter<string>;
+  filterDay: string;
+  setFilterDay: Setter<string>;
+};
+
+export type JournalPageProps = JournalFilters & {
+  trades: Trade[];
+  setups: Setup[];
+  strategies: Strategy[];
+  expandedId: string | null;
+  setExpandedId: Setter<string | null>;
+  onDelete: Setter<string>;
+  onEditRequest: Setter<Trade>;
+  onLightbox: Setter<string>;
+  days: string[];
+};
+
+export type DashboardPageProps = {
+  trades: Trade[];
+  stats: Stats;
+  equityData: EquityPoint[];
+  setups: Setup[];
+  onViewAll: () => void;
+  days: string[];
+};
+
 export type StatsPageProps = {
   stats: Stats;
   strategyStats: StrategyStats[];
   trades: Trade[];
-};
-
-export type SetupCardProps = {
-  setup: Setup;
-  tradeCount: number;
-  winRate: number;
-  pnl: number;
-  onEdit: (setup: Setup) => void;
-  onDelete: (id: string) => void;
+  days: string[];
 };
 
 export type SetupsPageProps = {
   setups: Setup[];
   trades: Trade[];
   onAddSetup: () => void;
-  onEditSetup: (setup: Setup) => void;
-  onDeleteSetup: (id: string) => void;
-};
-
-export type AddTradeModalProps = {
-  setups: Setup[];
-  strategies: Strategy[];
-  onClose: () => void;
-  onSave: (trade: any) => void;
-};
-
-export type SetupModalProps = {
-  initial?: Partial<Setup>;
-  onClose: () => void;
-  onSave: (setup: Setup) => void;
-};
-
-export type Strategy = {
-  id: string;
-  name: string;
-  description: string;
-  principles: string[];
-  color: string;
-};
-
-export type StrategyModalProps = {
-  initial?: Strategy | null;
-  onClose: () => void;
-  onSave: (strategy: Strategy) => void;
+  onEditSetup: Setter<Setup>;
+  onDeleteSetup: Setter<string>;
 };
 
 export type StrategiesPageProps = {
   strategies: Strategy[];
   trades: Trade[];
   onAddStrategy: () => void;
-  onEditStrategy: (strategy: Strategy) => void;
-  onDeleteStrategy: (id: string) => void;
+  onEditStrategy: Setter<Strategy>;
+  onDeleteStrategy: Setter<string>;
+};
+
+/** Cada par chave/setter gerado automaticamente por `ConfigsPageProps` */
+type ConfigEntry<K extends string, T> = { [P in K]: T } & {
+  [P in `set${Capitalize<K>}`]: Setter<T>;
+};
+
+export type ConfigsPageProps = ConfigEntry<"days", string[]> &
+  ConfigEntry<"timeframes", string[]> &
+  ConfigEntry<"markets", string[]> &
+  ConfigEntry<"colors", string[]> &
+  ConfigEntry<"errorTags", string[]> &
+  ConfigEntry<"emotions", string[]>;
+
+// ─── Props de componentes ─────────────────────────────────────────────────────
+
+export type SetupCardProps = {
+  setup: Setup;
+  tradeCount: number;
+  winRate: number;
+  pnl: number;
+  onEdit: Setter<Setup>;
+  onDelete: Setter<string>;
 };
 
 export type StatCardProps = {
   label: string;
   value: string | number;
   sub?: string;
-  tone?: "green" | "red" | "neutral";
+  tone?: Tone;
   tooltip?: string;
   rating?: { label: string; color: string };
 };
 
-export type Account = {
-  id: number;
-  name: string;
-}
+// ─── Props de modais ──────────────────────────────────────────────────────────
+
+export type AddTradeModalProps = {
+  initialTrade?: Partial<Trade>;
+  accountId: number;
+  setups: Setup[];
+  strategies: Strategy[];
+  onClose: () => void;
+  onSave: (trade: Trade) => void;
+  availableErrorTags: string[];
+  availableEmotions: string[];
+};
+
+export type SetupModalProps = {
+  initial?: Partial<Setup>;
+  onClose: () => void;
+  onSave: Setter<Setup>;
+  markets: string[];
+  colors: string[];
+  timeframes: string[];
+};
+
+export type StrategyModalProps = {
+  initial?: Strategy | null;
+  onClose: () => void;
+  onSave: Setter<Strategy>;
+  colors: string[];
+};
