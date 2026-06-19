@@ -16,12 +16,12 @@ function SetupCard({
 }: SetupCardProps) {
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="h-1" style={{ backgroundColor: setup.color }} />
+      <div className="h-1" style={{ backgroundColor: setup?.color }} />
       <div className="p-5">
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className="font-semibold text-sm leading-tight mb-1">
-              {setup.name}
+              {setup?.name}
             </h3>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border text-muted-foreground border-border">
@@ -66,8 +66,8 @@ function SetupCard({
                   <span
                     className="mt-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 text-[8px] font-bold"
                     style={{
-                      backgroundColor: setup.color + "28",
-                      color: setup.color,
+                      backgroundColor: setup?.color + "28",
+                      color: setup?.color,
                     }}
                   >
                     {i + 1}

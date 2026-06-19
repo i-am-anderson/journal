@@ -14,6 +14,7 @@ function DashboardPage({
   stats,
   equityData,
   setups,
+  strategies,
   onViewAll,
   days,
 }: DashboardPageProps) {
@@ -23,6 +24,7 @@ function DashboardPage({
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 8);
   const setupMap = Object.fromEntries(setups.map((s) => [s.id, s]));
+  const strategyMap = Object.fromEntries(strategies.map((s) => [s.id, s]));
 
   // 2. Cálculo dos Lucros por Dia da Semana
   const weekdayStats = useMemo(() => {
@@ -120,6 +122,7 @@ function DashboardPage({
           <div className="space-y-0">
             {recent.map((t) => {
               const setup = setupMap[t.setupId];
+              const strategy = strategyMap[t.strategyId];
               return (
                 <div
                   key={t.id}
@@ -137,16 +140,23 @@ function DashboardPage({
                     <span
                       className="text-[9px] font-mono px-1.5 py-0.5 rounded-full border shrink-0"
                       style={{
-                        color: setup.color,
-                        borderColor: setup.color + "44",
-                        backgroundColor: setup.color + "18",
+                        color: setup?.color,
+                        borderColor: setup?.color + "44",
+                        backgroundColor: setup?.color + "18",
                       }}
                     >
-                      {setup.name}
+                      {setup?.name}
                     </span>
                   ) : (
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full border border-border bg-secondary text-muted-foreground truncate max-w-[80px]">
-                      {t.strategy}
+                    <span
+                      className="text-[9px] font-mono px-1.5 py-0.5 rounded-full border border-border bg-secondary text-muted-foreground truncate max-w-[80px]"
+                      style={{
+                        color: strategy?.color,
+                        borderColor: strategy?.color + "44",
+                        backgroundColor: strategy?.color + "18",
+                      }}
+                    >
+                      {strategy?.name}
                     </span>
                   )}
                   <span

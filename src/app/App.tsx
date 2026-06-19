@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   LayoutDashboard,
   BookOpen,
@@ -11,6 +11,7 @@ import {
   FileSignature,
   Trash2,
   Settings,
+  CheckSquare,
 } from "lucide-react";
 
 import JournalPage from "./pages/JournalPage";
@@ -20,43 +21,45 @@ import SetupsPage from "./pages/SetupsPage";
 import StrategiesPage from "./pages/StrategiesPage";
 import TradingPlanPage from "./pages/TradingPlanPage";
 import ConfigsPage from "./pages/ConfigsPage";
+import ProcessGoalsPage from "./pages/ProcessGoalsPage";
+
 import SetupModal from "./components/SetupModal";
 import StrategyModal from "./components/StrategyModal";
 import AddTradeModal from "./components/AddTradeModal";
 
-import { fmtPnl, pnlColor } from "./helpers/utils";
+import { fmtPnl, pnlColor, uid } from "./helpers/utils";
+import { storageService } from "./services/storage";
+
+// Tipagens do sistema
 import {
-  DAYS,
-  TIMEFRAMES,
-  MARKETS,
-  SETUP_COLORS,
-  ERROR_TAGS,
-  EMOTIONS,
-  SEED_TRADES,
-  SEED_SETUPS,
-  SEED_STRATEGIES,
-} from "./helpers/constants";
-
-// 1. APENAS PARA REFERÊNCIA VISUAL DA MUDANÇA DE TIPO
-import { Trade, Setup, EquityPoint, Strategy, Account } from "./types";
-
-const SEED_ACCOUNTS_NUMERIC: Account[] = [
-  { id: 1, name: "Daytrade (Futures)" },
-  { id: 2, name: "Swing Trade (Stocks)" },
-];
+  Trade,
+  Setup,
+  EquityPoint,
+  Strategy,
+  Account,
+  TradesView,
+  DailyProcess,
+} from "./types";
 
 /* ══════════════════════════════════════════════════════════════════════
   ROOT APP
 ══════════════════════════════════════════════════════════════════════ */
 export default function App() {
-  const [accounts, setAccounts] = useState<Account[]>(SEED_ACCOUNTS_NUMERIC);
-  const [activeAccountId, setActiveAccountId] = useState<number>(-1); // -1 REPRESENTA 'ALL'
+  // ─── ESTADO DE CARREGAMENTO (INIT) ──────────────────────────────────
+  const [loading, setLoading] = useState(true);
 
-  const [trades, setTrades] = useState<Trade[]>(SEED_TRADES);
+  // ─── ESTADOS GERAIS DE DADOS ────────────────────────────────────────
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [activeAccountId, setActiveAccountId] = useState<string>(""); // "" = 'ALL'
 
-  const [setups, setSetups] = useState<Setup[]>(SEED_SETUPS);
-  const [strategies, setStrategies] = useState<Strategy[]>(SEED_STRATEGIES);
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [setups, setSetups] = useState<Setup[]>([]);
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
 
+  const [processGoals, setProcessGoals] = useState<string[]>([]);
+  const [dailyProcess, setDailyProcess] = useState<DailyProcess[]>([]);
+
+  // ─── ESTADOS DE UI / NAVEGAÇÃO ──────────────────────────────────────
   const [view, setView] = useState("dashboard");
   const [showAdd, setShowAdd] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -66,8 +69,9 @@ export default function App() {
   const [strategyModal, setStrategyModal] = useState<any>(null);
   const [expandedId, setExpandedId] = useState<any>(null);
   const [lightboxImg, setLightboxImg] = useState<any>(null);
+  const [editingTrade, setEditingTrade] = useState<any | null>(null);
 
-  // Filtros do Journal
+  // ─── ESTADOS DE FILTROS (Journal) ───────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSide, setFilterSide] = useState("all");
   const [filterStrategy, setFilterStrategy] = useState("all");
@@ -75,21 +79,119 @@ export default function App() {
   const [filterSetup, setFilterSetup] = useState("all");
   const [filterDay, setFilterDay] = useState("all");
 
-  // Filtros de Configs
-  const [days, setDays] = useState<string[]>(DAYS);
-  const [timeframes, setTimeframes] = useState<string[]>(TIMEFRAMES);
-  const [markets, setMarkets] = useState<string[]>(MARKETS);
-  const [colors, setColors] = useState<string[]>(SETUP_COLORS);
-  const [errorTags, setErrorTags] = useState<string[]>(ERROR_TAGS);
-  const [emotions, setEmotions] = useState<string[]>(EMOTIONS);
+  // ─── ESTADOS DE CONFIGURAÇÕES (Configs) ─────────────────────────────
+  const [days, setDays] = useState<string[]>([]);
+  const [timeframes, setTimeframes] = useState<string[]>([]);
+  const [markets, setMarkets] = useState<string[]>([]);
+  const [colors, setColors] = useState<string[]>([]);
+  const [errorTags, setErrorTags] = useState<string[]>([]);
+  const [emotions, setEmotions] = useState<string[]>([]);
 
-  const [editingTrade, setEditingTrade] = useState<any | null>(null);
+  const [displayMode, setDisplayMode] = useState<TradesView>("playbook");
 
-  // ══════════════════════════════════════════════════════════════════════
-  //  FILTRO DE CONTEXTO NUMÉRICO
-  // ══════════════════════════════════════════════════════════════════════
+  /* ══════════════════════════════════════════════════════════════════════
+    1. CARREGAMENTO INICIAL (MOCK DA API)
+  ══════════════════════════════════════════════════════════════════════ */
+  useEffect(() => {
+    async function loadInitialData() {
+      try {
+        const [
+          loadedConfigs,
+          loadedAccounts,
+          loadedSetups,
+          loadedStrategies,
+          loadedTrades,
+          loadedDailyProcess,
+          loadedProcessGoals,
+        ] = await Promise.all([
+          storageService.getConfigs(),
+          storageService.getAccounts(),
+          storageService.getSetups(),
+          storageService.getStrategies(),
+          storageService.getTrades(),
+          storageService.getDailyProcess(),
+          storageService.getProcessGoals(),
+        ]);
+
+        // Populando as configs (Garantindo um fallback para Arrays vazios)
+        setDays(loadedConfigs.days || []);
+        setTimeframes(loadedConfigs.timeframes || []);
+        setMarkets(loadedConfigs.markets || []);
+        setColors(loadedConfigs.colors || []);
+        setErrorTags(loadedConfigs.errorTags || []);
+        setEmotions(loadedConfigs.emotions || []);
+        setDisplayMode(loadedConfigs.displayMode || "playbook");
+
+        if (loadedConfigs.activeAccountId !== undefined) {
+          setActiveAccountId(loadedConfigs.activeAccountId);
+        }
+
+        // Populando as listas principais
+        setAccounts(loadedAccounts || []);
+        setSetups(loadedSetups || []);
+        setStrategies(loadedStrategies || []);
+        setTrades(loadedTrades || []);
+        setDailyProcess(loadedDailyProcess || []);
+        setProcessGoals(loadedProcessGoals || []);
+      } catch (error) {
+        console.error("Erro ao carregar dados", error);
+      } finally {
+        setLoading(false); // Libera a UI
+      }
+    }
+
+    loadInitialData();
+  }, []);
+
+  /* ══════════════════════════════════════════════════════════════════════
+    2. AUTO-SAVE DAS CONFIGURAÇÕES EM BACKGROUND
+  ══════════════════════════════════════════════════════════════════════ */
+  useEffect(() => {
+    if (loading) return; // Não salvar enquanto estiver no carregamento inicial
+
+    storageService.saveConfigs({
+      days,
+      timeframes,
+      markets,
+      colors,
+      errorTags,
+      emotions,
+      activeAccountId,
+      theme: "dark", // Se quiser evoluir temas no futuro
+      displayMode,
+    });
+
+    storageService.saveAccounts(accounts);
+
+    storageService.saveSetups(setups);
+
+    storageService.saveStrategies(strategies);
+
+    storageService.saveDailyProcess(dailyProcess);
+
+    storageService.saveProcessGoals(processGoals);
+  }, [
+    days,
+    timeframes,
+    markets,
+    colors,
+    errorTags,
+    emotions,
+    activeAccountId,
+    loading,
+    accounts,
+    setups,
+    strategies,
+    displayMode,
+    processGoals,
+    dailyProcess,
+  ]);
+
+  /* ══════════════════════════════════════════════════════════════════════
+    FILTRO DE CONTEXTO NUMÉRICO E MEMOS
+  ══════════════════════════════════════════════════════════════════════ */
   const accountTrades = useMemo(() => {
-    if (activeAccountId === -1) return trades; // Se for -1, retorna tudo
+    if (activeAccountId === "") return trades;
     return trades.filter((t) => t.accountId === activeAccountId);
   }, [trades, activeAccountId]);
 
@@ -138,14 +240,11 @@ export default function App() {
       .filter((t) => {
         if (searchQuery) {
           const q = searchQuery.toLowerCase();
-          if (
-            !t.symbol.toLowerCase().includes(q) &&
-            !t.strategy.toLowerCase().includes(q)
-          )
+          if (!t.symbol.toLowerCase().includes(q) && !t.strategyId.includes(q))
             return false;
         }
         if (filterSide !== "all" && t.side !== filterSide) return false;
-        if (filterStrategy !== "all" && t.strategy !== filterStrategy)
+        if (filterStrategy !== "all" && t.strategyId !== filterStrategy)
           return false;
         if (filterStatus !== "all" && t.status !== filterStatus) return false;
         if (filterSetup !== "all" && t.setupId !== filterSetup) return false;
@@ -171,7 +270,7 @@ export default function App() {
       [key: string]: { trades: number; wins: number; pnl: number };
     } = {};
     accountTrades.forEach((t) => {
-      const key = t.strategy || t.strategy;
+      const key = t.strategyId || t.strategyId;
       if (!key) return;
       if (!map[key]) map[key] = { trades: 0, wins: 0, pnl: 0 };
       map[key].trades++;
@@ -184,7 +283,6 @@ export default function App() {
         const matchingStrat = strategies.find(
           (st) => st.id === key || st.name === key,
         );
-
         return {
           name: matchingStrat ? matchingStrat.name : key,
           trades: s.trades,
@@ -196,42 +294,63 @@ export default function App() {
       .sort((a, b) => b.pnl - a.pnl);
   }, [accountTrades, strategies]);
 
-  // GERAÇÃO DE ID AUTO-INCREMENTAL SEGURO
-  function handleCreateAccount() {
+  /* ══════════════════════════════════════════════════════════════════════
+    HANDLERS: ACCOUNTS E DADOS PRINCIPAIS (COM PERSISTÊNCIA)
+  ══════════════════════════════════════════════════════════════════════ */
+  async function handleCreateAccount() {
     if (!newAccountName.trim()) return;
-    const maxId = accounts.reduce(
-      (max, acc) => (acc.id > max ? acc.id : max),
-      0,
-    );
-    const newAcc: Account = {
-      id: maxId + 1, // Garante id >= 0 sempre auto-incrementado
-      name: newAccountName.trim(),
-    };
-    setAccounts((prev) => [...prev, newAcc]);
+    const newAcc: Account = { id: uid(), name: newAccountName.trim() };
+
+    const updatedAccounts = [...accounts, newAcc];
+    setAccounts(updatedAccounts);
     setActiveAccountId(newAcc.id);
+
+    await storageService.saveAccounts(updatedAccounts); // Persiste
+
     setNewAccountName("");
     setShowAddAccount(false);
   }
 
-  function handleDeleteAccount() {
-    if (activeAccountId === -1) return; // Proteção: não deletar a visão 'all'
+  async function handleDeleteAccount() {
+    if (activeAccountId === "") return;
 
     const accToDelete = accounts.find((a) => a.id === activeAccountId);
     if (!accToDelete) return;
 
-    // Confirmação de segurança nativa do navegador
     const confirmDelete = window.confirm(
       `ATENÇÃO: Você tem certeza que deseja excluir o ambiente "${accToDelete.name}"?\n\nIsso apagará PERMANENTEMENTE todos os trades vinculados a ele!`,
     );
 
     if (confirmDelete) {
-      // 1. Remove a conta da lista
-      setAccounts((prev) => prev.filter((a) => a.id !== activeAccountId));
-      // 2. Apaga todos os trades daquela conta (evita trades fantasmas)
-      setTrades((prev) => prev.filter((t) => t.accountId !== activeAccountId));
-      // 3. Retorna a visualização para "All Accounts"
-      setActiveAccountId(-1);
+      const updatedAccounts = accounts.filter((a) => a.id !== activeAccountId);
+      const updatedTrades = trades.filter(
+        (t) => t.accountId !== activeAccountId,
+      );
+
+      setAccounts(updatedAccounts);
+      setTrades(updatedTrades);
+      setActiveAccountId("");
+
+      // Sincroniza exclusões em massa
+      await Promise.all([
+        storageService.saveAccounts(updatedAccounts),
+        storageService.saveTrades(updatedTrades),
+      ]);
     }
+  }
+
+  // ─── TELA DE CARREGAMENTO ─────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-foreground">
+        <div className="flex flex-col items-center gap-4">
+          <Activity size={32} className="text-emerald-400 animate-pulse" />
+          <span className="font-mono text-sm text-muted-foreground tracking-widest uppercase">
+            Initializing Vault...
+          </span>
+        </div>
+      </div>
+    );
   }
 
   const navItems = [
@@ -244,6 +363,7 @@ export default function App() {
     { id: "stats", label: "Statistics", icon: <BarChart2 size={15} /> },
     { id: "setups", label: "Setups", icon: <Layers size={15} /> },
     { id: "strategies", label: "Strategies", icon: <Target size={15} /> },
+    { id: "process", label: "Process Goals", icon: <CheckSquare size={15} /> },
     {
       id: "trading-plan",
       label: "Trading Plan",
@@ -265,7 +385,7 @@ export default function App() {
           </span>
         </div>
 
-        {/* SELETOR DE AMBIENTES ATUALIZADO */}
+        {/* SELETOR DE AMBIENTES */}
         <div className="px-4 py-3.5 border-b border-border bg-secondary/10 space-y-1.5">
           <label className="block text-[9px] font-mono uppercase tracking-[0.12em] text-muted-foreground">
             Active Environment
@@ -273,10 +393,10 @@ export default function App() {
           <div className="flex items-center gap-1.5">
             <select
               value={activeAccountId}
-              onChange={(e) => setActiveAccountId(Number(e.target.value))}
+              onChange={(e) => setActiveAccountId(e.target.value)}
               className="flex-1 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40 cursor-pointer w-full min-w-0"
             >
-              <option value={-1}>All Accounts</option>
+              <option value="">All Accounts</option>
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
                   {acc.name}
@@ -292,8 +412,7 @@ export default function App() {
               <Plus size={13} />
             </button>
 
-            {/* O botão de apagar só aparece se houver uma conta selecionada (diferente de -1) */}
-            {activeAccountId !== -1 && (
+            {activeAccountId !== "" && (
               <button
                 onClick={handleDeleteAccount}
                 className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center border border-border bg-background text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-all"
@@ -310,7 +429,11 @@ export default function App() {
             <button
               key={item.id}
               onClick={() => setView(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${view === item.id ? "bg-emerald-400/10 text-emerald-400 font-medium" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                view === item.id
+                  ? "bg-emerald-400/10 text-emerald-400 font-medium"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
             >
               {item.icon}
               {item.label}
@@ -369,11 +492,13 @@ export default function App() {
                         ? "Strategies Playbook"
                         : view === "configs"
                           ? "Settings"
-                          : "Trading Plan"}{" "}
+                          : view === "process"
+                            ? "Process Goals"
+                            : "Trading Plan"}{" "}
             </h1>
             <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
               Scope:{" "}
-              {activeAccountId === -1
+              {activeAccountId === ""
                 ? "Consolidated"
                 : accounts.find((a) => a.id === activeAccountId)?.name}
             </p>
@@ -385,7 +510,7 @@ export default function App() {
                   alert(
                     "⚠️ Você não possui nenhum ambiente ativo! Crie uma conta antes de registrar seus trades.",
                   );
-                  setShowAddAccount(true); // Abre automaticamente o modal de criar conta
+                  setShowAddAccount(true);
                   return;
                 }
                 setShowAdd(true);
@@ -409,6 +534,7 @@ export default function App() {
               stats={stats}
               equityData={equityData}
               setups={setups}
+              strategies={strategies}
               onViewAll={() => setView("journal")}
               days={days}
             />
@@ -420,8 +546,10 @@ export default function App() {
               strategies={strategies}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
-              onDelete={(id) => {
-                setTrades((prev) => prev.filter((t) => t.id !== id));
+              onDelete={async (id) => {
+                const updatedTrades = trades.filter((t) => t.id !== id);
+                setTrades(updatedTrades);
+                await storageService.saveTrades(updatedTrades); // Persiste Deleção
                 if (expandedId === id) setExpandedId(null);
               }}
               onEditRequest={(trade) => {
@@ -442,6 +570,8 @@ export default function App() {
               filterDay={filterDay}
               setFilterDay={setFilterDay}
               days={days}
+              setDisplayMode={setDisplayMode}
+              displayMode={displayMode}
             />
           )}
           {view === "stats" && (
@@ -450,6 +580,7 @@ export default function App() {
               strategyStats={strategyStats}
               trades={accountTrades}
               days={days}
+              strategies={strategies}
             />
           )}
           {view === "setups" && (
@@ -458,9 +589,11 @@ export default function App() {
               trades={accountTrades}
               onAddSetup={() => setSetupModal("new")}
               onEditSetup={(setup) => setSetupModal(setup)}
-              onDeleteSetup={(id) =>
-                setSetups((prev) => prev.filter((s) => s.id !== id))
-              }
+              onDeleteSetup={async (id) => {
+                const updatedSetups = setups.filter((s) => s.id !== id);
+                setSetups(updatedSetups);
+                await storageService.saveSetups(updatedSetups); // Persiste Deleção
+              }}
             />
           )}
           {view === "strategies" && (
@@ -469,9 +602,11 @@ export default function App() {
               trades={accountTrades}
               onAddStrategy={() => setStrategyModal("new")}
               onEditStrategy={(strat) => setStrategyModal(strat)}
-              onDeleteStrategy={(id) =>
-                setStrategies((prev) => prev.filter((s) => s.id !== id))
-              }
+              onDeleteStrategy={async (id) => {
+                const updatedStrategies = strategies.filter((s) => s.id !== id);
+                setStrategies(updatedStrategies);
+                await storageService.saveStrategies(updatedStrategies); // Persiste Deleção
+              }}
             />
           )}
           {view === "trading-plan" && <TradingPlanPage />}
@@ -489,6 +624,27 @@ export default function App() {
               setErrorTags={setErrorTags}
               emotions={emotions}
               setEmotions={setEmotions}
+              processGoals={processGoals}
+              setProcessGoals={setProcessGoals}
+            />
+          )}
+          {view === "process" && (
+            <ProcessGoalsPage
+              trades={accountTrades}
+              processGoals={processGoals}
+              dailyProcess={dailyProcess}
+              onSaveDailyProcess={async (data) => {
+                // Verifica se já existe, atualiza ou insere
+                const exists = dailyProcess.findIndex(
+                  (dp) => dp.date === data.date,
+                );
+                const updated = [...dailyProcess];
+                if (exists >= 0) updated[exists] = data;
+                else updated.push(data);
+
+                setDailyProcess(updated);
+                await storageService.saveDailyProcess(updated);
+              }}
             />
           )}
         </div>
@@ -533,47 +689,52 @@ export default function App() {
         </div>
       )}
 
-      {/* Outros Modals */}
+      {/* Modal: Adicionar/Editar Trade */}
       {showAdd && (
         <AddTradeModal
-          accountId={activeAccountId === -1 ? accounts[0].id : activeAccountId}
+          accountId={activeAccountId === "" ? accounts[0].id : activeAccountId}
           availableErrorTags={errorTags}
           availableEmotions={emotions}
           setups={setups}
           strategies={strategies}
-          initialTrade={editingTrade} // <-- Injeta os dados se for edição, ou null se for novo
+          initialTrade={editingTrade}
           onClose={() => {
             setShowAdd(false);
-            setEditingTrade(null); // Limpa o estado ao fechar
+            setEditingTrade(null);
           }}
-          onSave={(savedTrade) => {
+          onSave={async (savedTrade) => {
+            let updatedTrades;
             if (editingTrade) {
-              // MODO EDIÇÃO: Atualiza o trade existente no array
-              setTrades((prev) =>
-                prev.map((t) => (t.id === savedTrade.id ? savedTrade : t)),
+              updatedTrades = trades.map((t) =>
+                t.id === savedTrade.id ? savedTrade : t,
               );
             } else {
-              // MODO CRIAÇÃO: Adiciona o novo trade no início do array
-              setTrades((prev) => [savedTrade, ...prev]);
+              updatedTrades = [savedTrade, ...trades];
             }
 
+            setTrades(updatedTrades);
+            await storageService.saveTrades(updatedTrades); // Persiste Trade
+
             setShowAdd(false);
-            setEditingTrade(null); // Limpa o estado após salvar
+            setEditingTrade(null);
           }}
         />
       )}
 
+      {/* Modal: Setup */}
       {setupModal && (
         <SetupModal
           initial={setupModal === "new" ? null : setupModal}
           onClose={() => setSetupModal(null)}
-          onSave={(setup) => {
-            setSetups((prev) => {
-              const exists = prev.find((s) => s.id === setup.id);
-              return exists
-                ? prev.map((s) => (s.id === setup.id ? setup : s))
-                : [...prev, setup];
-            });
+          onSave={async (setup) => {
+            const exists = setups.find((s) => s.id === setup.id);
+            const updatedSetups = exists
+              ? setups.map((s) => (s.id === setup.id ? setup : s))
+              : [...setups, setup];
+
+            setSetups(updatedSetups);
+            await storageService.saveSetups(updatedSetups); // Persiste Setup
+
             setSetupModal(null);
           }}
           markets={markets}
@@ -582,23 +743,27 @@ export default function App() {
         />
       )}
 
+      {/* Modal: Strategy */}
       {strategyModal && (
         <StrategyModal
           initial={strategyModal === "new" ? null : strategyModal}
           onClose={() => setStrategyModal(null)}
-          onSave={(strategy) => {
-            setStrategies((prev) => {
-              const exists = prev.find((s) => s.id === strategy.id);
-              return exists
-                ? prev.map((s) => (s.id === strategy.id ? strategy : s))
-                : [...prev, strategy];
-            });
+          onSave={async (strategy) => {
+            const exists = strategies.find((s) => s.id === strategy.id);
+            const updatedStrategies = exists
+              ? strategies.map((s) => (s.id === strategy.id ? strategy : s))
+              : [...strategies, strategy];
+
+            setStrategies(updatedStrategies);
+            await storageService.saveStrategies(updatedStrategies); // Persiste Strategy
+
             setStrategyModal(null);
           }}
           colors={colors}
         />
       )}
 
+      {/* Lightbox Imagens */}
       {lightboxImg && (
         <div
           className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center p-8 cursor-zoom-out"

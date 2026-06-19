@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { fmtDate, fmtPnl, fmtTime, pnlColor } from "../helpers/utils";
 
-import { JournalPageProps } from "../types";
+import { JournalPageProps, TradesView } from "../types";
 import { useState } from "react";
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -37,16 +37,16 @@ function JournalPage({
   filterDay,
   setFilterDay,
   days,
+  displayMode,
+  setDisplayMode
 }: JournalPageProps) {
-  const [displayMode, setDisplayMode] = useState<"compact" | "playbook">(
-    "compact",
-  );
-
   const setupMap = Object.fromEntries(setups.map((s) => [s.id, s]));
+  const strategyMap = Object.fromEntries(strategies.map((s) => [s.id, s]));
 
   // Função dedicada para gerar e imprimir o relatório do trade de forma limpa
   const handlePrint = (trade: any) => {
     const setup = setupMap[trade.setupId];
+    const strategy = strategyMap[trade.strategyId];
     const plannedRR =
       trade.stopLoss && trade.takeProfit && trade.entry
         ? (
@@ -225,8 +225,8 @@ function JournalPage({
               <h1>${trade.symbol} <span class="badge ${trade.side}">${trade.side}</span></h1>
               <div class="header-meta">
                 <span class="badge ${trade.status}">${trade.status}</span>
-                ${setup ? `<span class="badge" style="color: ${setup.color}; border-color: ${setup.color}55; background-color: ${setup.color}10;">Setup: ${setup.name}</span>` : ""}
-                <span class="badge">Strategy: ${trade.strategy}</span>
+                ${setup ? `<span class="badge" style="color: ${setup?.color}; border-color: ${setup?.color}55; background-color: ${setup?.color}10;">Setup: ${setup?.name}</span>` : ""}
+                <span class="badge" style="color: ${strategy?.color}; border-color: ${strategy?.color}55; background-color: ${strategy?.color}10;">Strategy: ${trade.strategy}</span>
               </div>
             </div>
             <div class="date-badge">${fmtDate(trade.date)}</div>
@@ -433,6 +433,7 @@ function JournalPage({
 
           {trades.map((trade) => {
             const setup = setupMap[trade.setupId];
+            const strategy = strategyMap[trade.strategyId];
             return (
               <div key={trade.id}>
                 <div
@@ -468,20 +469,27 @@ function JournalPage({
                       <span
                         className="text-[10px] font-mono px-2 py-0.5 rounded-full border inline-flex items-center gap-1"
                         style={{
-                          color: setup.color,
-                          borderColor: setup.color + "44",
-                          backgroundColor: setup.color + "18",
+                          color: setup?.color,
+                          borderColor: setup?.color + "44",
+                          backgroundColor: setup?.color + "18",
                         }}
                       >
                         <span
                           className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: setup.color }}
+                          style={{ backgroundColor: setup?.color }}
                         />
-                        {setup.name}
+                        {setup?.name}
                       </span>
                     )}
-                    <span className="text-xs text-muted-foreground font-mono bg-secondary/40 px-2 py-0.5 rounded border border-border">
-                      {trade.strategy}
+                    <span
+                      className="text-xs text-muted-foreground font-mono bg-secondary/40 px-2 py-0.5 rounded border border-border"
+                      style={{
+                        color: strategy?.color,
+                        borderColor: strategy?.color + "44",
+                        backgroundColor: strategy?.color + "18",
+                      }}
+                    >
+                      {strategy?.name}
                     </span>
                   </div>
                   <div className="w-28 shrink-0 text-right">
@@ -544,7 +552,10 @@ function JournalPage({
                           Strategy Focus
                         </p>
                         <p className="text-sm font-mono text-foreground font-semibold">
-                          {trade.strategy}
+                          {trade.strategyId
+                            ? strategyMap[trade.strategyId]?.name ||
+                              "Unknown Strategy"
+                            : "No Strategy"}
                         </p>
                       </div>
                       <div>
@@ -644,6 +655,7 @@ function JournalPage({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {trades.map((trade) => {
             const setup = setupMap[trade.setupId];
+            const strategy = strategyMap[trade.strategyId];
             return (
               <div
                 key={trade.id}
@@ -717,16 +729,23 @@ function JournalPage({
                         <span
                           className="text-[10px] font-mono px-2 py-0.5 rounded-full border inline-flex items-center gap-1"
                           style={{
-                            color: setup.color,
-                            borderColor: setup.color + "44",
-                            backgroundColor: setup.color + "18",
+                            color: setup?.color,
+                            borderColor: setup?.color + "44",
+                            backgroundColor: setup?.color + "18",
                           }}
                         >
-                          {setup.name}
+                          {setup?.name}
                         </span>
                       )}
-                      <span className="text-[10px] text-muted-foreground font-mono bg-secondary/40 px-2 py-0.5 rounded border border-border">
-                        {trade.strategy}
+                      <span
+                        className="text-[10px] text-muted-foreground font-mono bg-secondary/40 px-2 py-0.5 rounded border border-border"
+                        style={{
+                          color: strategy?.color,
+                          borderColor: strategy?.color + "44",
+                          backgroundColor: strategy?.color + "18",
+                        }}
+                      >
+                        {strategy?.name}
                       </span>
                     </div>
 

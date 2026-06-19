@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, X, Calendar, Clock, Globe, Palette, Heart } from "lucide-react";
+import { Plus, X, Calendar, Clock, Globe, Palette, Heart, CheckSquare } from "lucide-react";
 
 import { ConfigsPageProps } from "../types";
 
@@ -19,12 +19,16 @@ export default function ConfigsPage({
   setErrorTags,
   emotions,
   setEmotions,
-}: ConfigsPageProps) {
+  processGoals,
+  setProcessGoals,
+}: ConfigsPageProps & { processGoals: string[]; setProcessGoals: (g: string[]) => void }) {
+  
   const [newTimeframe, setNewTimeframe] = useState("");
   const [newMarket, setNewMarket] = useState("");
   const [newColor, setNewColor] = useState("#ffffff");
   const [newErrorTag, setNewErrorTag] = useState("");
   const [newEmotion, setNewEmotion] = useState("");
+  const [newProcessGoal, setNewProcessGoal] = useState(""); // 👇 Novo estado local
 
   // Handlers para Dias (tradução/edição direta)
   const handleUpdateDay = (index: number, val: string) => {
@@ -315,7 +319,7 @@ export default function ConfigsPage({
             </div>
           </div>
 
-          {/* Emotions (Gerenciamento da lista) */}
+          {/* Emotions */}
           <div>
             <label className="text-xs text-muted-foreground block mb-2">
               Emotions
@@ -362,6 +366,64 @@ export default function ConfigsPage({
             </div>
           </div>
         </div>
+
+        {/* 👇 NOVO BLOCO: PROCESS GOALS */}
+        <div className="bg-card border border-border rounded-xl p-6 flex flex-col">
+          <div className="flex items-center gap-2 mb-4 text-emerald-400">
+            <CheckSquare size={18} />
+            <h3 className="font-semibold text-sm text-foreground">
+              Process Goals
+            </h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Defina as regras inegociáveis do seu operacional para avaliar no Diário. (ex: Max 3 stops no dia).
+          </p>
+
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newProcessGoal}
+              onChange={(e) => setNewProcessGoal(e.target.value)}
+              placeholder="Nova regra de processo..."
+              className={inputClasses}
+              onKeyDown={(e) =>
+                e.key === "Enter" &&
+                handleAdd(newProcessGoal, processGoals, setProcessGoals, () =>
+                  setNewProcessGoal(""),
+                )
+              }
+            />
+            <button
+              onClick={() =>
+                handleAdd(newProcessGoal, processGoals, setProcessGoals, () =>
+                  setNewProcessGoal(""),
+                )
+              }
+              disabled={!newProcessGoal.trim()}
+              className={btnClasses}
+            >
+              <Plus size={14} /> Add
+            </button>
+          </div>
+          
+          <div className="flex flex-col gap-2">
+            {processGoals.map((goal) => (
+              <span
+                key={goal}
+                className="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-500/10 text-emerald-400 rounded-lg text-xs border border-emerald-500/20"
+              >
+                <span className="font-medium truncate">{goal}</span>
+                <button
+                  onClick={() => handleRemove(goal, processGoals, setProcessGoals)}
+                  className="text-emerald-400 hover:text-red-400 shrink-0"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );

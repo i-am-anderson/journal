@@ -20,7 +20,7 @@ function StrategiesPage({
       {};
 
     trades.forEach((t: Trade) => {
-      const stratKey = t.strategy;
+      const stratKey = t.strategyId;
       if (!stratKey) return;
 
       if (!map[stratKey]) map[stratKey] = { count: 0, wins: 0, pnl: 0 };

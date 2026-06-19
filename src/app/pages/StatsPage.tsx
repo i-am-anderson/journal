@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { Printer, Calendar } from "lucide-react"; // Importando ícones para o topo
 import StatCard from "../components/StatCard";
-import { fmtPnl, pnlColor } from "../helpers/utils";
+import { fmtPnl, pnlColor, uid } from "../helpers/utils";
 
 import { StatsPageProps, Trade } from "../types";
 import useAdvancedStats from "../hooks/useAdvancedStats";
@@ -26,10 +26,13 @@ function StatsPage({
   strategyStats: initialStrategyStats,
   trades,
   days,
+  strategies,
 }: StatsPageProps) {
   // Estados para o range de datas (formato YYYY-MM-DD do input nativo)
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  const strategyMap = Object.fromEntries(strategies.map((s) => [s.id, s]));
 
   // 0. Filtragem dos Trades pelo Range de Data
   const filteredTrades = useMemo(() => {
@@ -57,6 +60,7 @@ function StatsPage({
         worstTrade: 0,
       };
     }
+
     const winsTrades = filteredTrades.filter((t) => t.pnl > 0);
     const lossTrades = filteredTrades.filter((t) => t.pnl < 0);
 
@@ -94,14 +98,20 @@ function StatsPage({
       string,
       { name: string; trades: number; wins: number; pnl: number }
     > = {};
-
     filteredTrades.forEach((t) => {
-      if (!map[t.strategy]) {
-        map[t.strategy] = { name: t.strategy, trades: 0, wins: 0, pnl: 0 };
+      const strategy = strategyMap[t.strategyId];
+
+      if (!map[t.strategyId]) {
+        map[t.strategyId] = {
+          name: strategy?.name,
+          trades: 0,
+          wins: 0,
+          pnl: 0,
+        };
       }
-      map[t.strategy].trades += 1;
-      if (t.pnl > 0) map[t.strategy].wins += 1;
-      map[t.strategy].pnl += t.pnl;
+      map[t.strategyId].trades += 1;
+      if (t.pnl > 0) map[t.strategyId].wins += 1;
+      map[t.strategyId].pnl += t.pnl;
     });
 
     return Object.values(map)
@@ -647,7 +657,7 @@ function StatsPage({
         ) : (
           localStrategyStats.map((s) => (
             <div
-              key={s.name}
+              key={s?.name || uid()}
               className="px-5 py-4 border-b border-border last:border-0"
             >
               <div className="flex items-center justify-between mb-2">

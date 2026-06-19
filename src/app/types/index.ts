@@ -3,6 +3,7 @@
 export type Side = "long" | "short";
 export type Status = "win" | "loss" | "breakeven";
 export type Tone = "green" | "red" | "neutral";
+export type TradesView = "playbook" | "compact";
 
 /** Handler genérico para setters simples — elimina repetição nos Props abaixo */
 type Setter<T> = (value: T) => void;
@@ -11,7 +12,7 @@ type Setter<T> = (value: T) => void;
 
 export type Trade = {
   id: string;
-  accountId: number;
+  accountId: string;
   date: string;
   symbol: string;
   side: Side;
@@ -20,7 +21,7 @@ export type Trade = {
   size: number;
   pnl: number;
   pnlPct: number;
-  strategy: string;
+  strategyId: string;
   setupId: string;
   status: Status;
   stopLoss?: number;
@@ -50,7 +51,7 @@ export type Strategy = {
 };
 
 export type Account = {
-  id: number;
+  id: string;
   name: string;
 };
 
@@ -81,6 +82,13 @@ export type StrategyStats = {
   winRate: number;
 };
 
+export type DailyProcess = {
+  date: string;
+  checklist: Record<string, boolean>;
+  notes: string;
+  closed: boolean;
+};
+
 // ─── Props de páginas ─────────────────────────────────────────────────────────
 
 /** Filtros do Journal — isolados para reaproveitamento */
@@ -109,6 +117,8 @@ export type JournalPageProps = JournalFilters & {
   onEditRequest: Setter<Trade>;
   onLightbox: Setter<string>;
   days: string[];
+  displayMode: TradesView;
+  setDisplayMode: Setter<TradesView>;
 };
 
 export type DashboardPageProps = {
@@ -116,6 +126,7 @@ export type DashboardPageProps = {
   stats: Stats;
   equityData: EquityPoint[];
   setups: Setup[];
+  strategies: Strategy[];
   onViewAll: () => void;
   days: string[];
 };
@@ -125,6 +136,7 @@ export type StatsPageProps = {
   strategyStats: StrategyStats[];
   trades: Trade[];
   days: string[];
+  strategies: Strategy[];
 };
 
 export type SetupsPageProps = {
@@ -143,6 +155,13 @@ export type StrategiesPageProps = {
   onDeleteStrategy: Setter<string>;
 };
 
+export type ProcessGoalsPageProps = {
+  trades: Trade[];
+  processGoals: string[];
+  dailyProcess: DailyProcess[];
+  onSaveDailyProcess: (data: DailyProcess) => void;
+};
+
 /** Cada par chave/setter gerado automaticamente por `ConfigsPageProps` */
 type ConfigEntry<K extends string, T> = { [P in K]: T } & {
   [P in `set${Capitalize<K>}`]: Setter<T>;
@@ -153,7 +172,8 @@ export type ConfigsPageProps = ConfigEntry<"days", string[]> &
   ConfigEntry<"markets", string[]> &
   ConfigEntry<"colors", string[]> &
   ConfigEntry<"errorTags", string[]> &
-  ConfigEntry<"emotions", string[]>;
+  ConfigEntry<"emotions", string[]> &
+  ConfigEntry<"processGoals", string[]>;
 
 // ─── Props de componentes ─────────────────────────────────────────────────────
 
@@ -179,7 +199,7 @@ export type StatCardProps = {
 
 export type AddTradeModalProps = {
   initialTrade?: Partial<Trade>;
-  accountId: number;
+  accountId: string;
   setups: Setup[];
   strategies: Strategy[];
   onClose: () => void;
@@ -202,4 +222,37 @@ export type StrategyModalProps = {
   onClose: () => void;
   onSave: Setter<Strategy>;
   colors: string[];
+};
+
+export type AppConfigs = {
+  days: string[];
+  timeframes: string[];
+  markets: string[];
+  colors: string[];
+  errorTags: string[];
+  emotions: string[];
+  activeAccountId: string;
+  theme: "dark" | "light";
+  displayMode: TradesView;
+};
+
+export type DailyProcessModalProps = {
+  date: string;
+  trades: Trade[];
+  processGoals: string[];
+  initialData: DailyProcess | null;
+  onClose: () => void;
+  onSave: (data: DailyProcess) => void;
+};
+
+export type JournalEntry = {
+  date: string;
+  dayGoals?: { text: string; checked: boolean }[];
+  checkedGoals?: string[];
+};
+
+export type MonthlyProcessProgressProps = {
+  entries: DailyProcess[];
+  currentMonth: Date;
+  currentGlobalGoalsCount: number;
 };

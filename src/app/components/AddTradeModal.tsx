@@ -39,7 +39,7 @@ function AddTradeModal({
     size: initialTrade?.size || "",
     stopLoss: initialTrade?.stopLoss || "",
     takeProfit: initialTrade?.takeProfit || "",
-    strategy: initialTrade?.strategy || strategies[0]?.name || "None",
+    strategyId: initialTrade?.strategyId || strategies[0]?.id || "",
     setupId: initialTrade?.setupId || setups[0]?.id || "",
     notes: initialTrade?.notes || "",
     errorTags: initialTrade?.errorTags || [],
@@ -100,8 +100,8 @@ function AddTradeModal({
     const finalIsoDate = new Date(form.date).toISOString();
 
     onSave({
-      id: initialTrade?.id || uid(), // Se é edição mantém o ID, senão cria um novo!
-      accountId: initialTrade?.accountId || accountId, // Mantém a conta original se for edição
+      id: initialTrade?.id || uid(),
+      accountId: initialTrade?.accountId || accountId,
       date: finalIsoDate,
       symbol: form.symbol.trim().toUpperCase(),
       side: form.side as Side,
@@ -114,7 +114,7 @@ function AddTradeModal({
         : undefined,
       pnl,
       pnlPct,
-      strategy: form.strategy,
+      strategyId: form.strategyId,
       setupId: form.setupId,
       notes: form.notes.trim(),
       images: form.images,
@@ -137,7 +137,6 @@ function AddTradeModal({
   const inputCls =
     "w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40 transition-colors";
 
-  // Textos dinâmicos dependendo se estamos criando ou editando
   const isEditing = !!initialTrade;
   const modalTitle = isEditing ? "Edit Trade" : "New Trade";
   const submitText = isEditing ? "Update Trade" : "Save Trade";
@@ -297,6 +296,7 @@ function AddTradeModal({
             </div>
           </div>
 
+          {/* SETUP PLAYBOOK */}
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
               Setup Playbook
@@ -307,49 +307,55 @@ function AddTradeModal({
               </p>
             ) : (
               <div className="grid grid-cols-1 gap-1.5">
-                {setups.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => set("setupId", s.id)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${form.setupId === s.id ? "border-current bg-opacity-10" : "border-border hover:border-border/80"}`}
-                    style={
-                      form.setupId === s.id
-                        ? {
-                            borderColor: s.color,
-                            backgroundColor: s.color + "18",
-                          }
-                        : {}
-                    }
-                  >
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: s.color }}
-                    />
-                    <span className="text-sm font-medium">{s.name}</span>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {s.timeframe} · {s.markets}
-                    </span>
-                    {form.setupId === s.id && (
-                      <Check size={12} style={{ color: s.color }} />
-                    )}
-                  </button>
-                ))}
+                {setups.map((s) => {
+                  const isSelected = form.setupId === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => set("setupId", s.id)}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${isSelected ? "border-current bg-opacity-10" : "border-border hover:border-border/80"}`}
+                      style={
+                        isSelected
+                          ? {
+                              borderColor: s.color,
+                              backgroundColor: s.color + "18",
+                            }
+                          : {}
+                      }
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: s.color }}
+                      />
+                      <span className="text-sm font-medium">{s.name}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {s.timeframe} · {s.markets}
+                      </span>
+                      {isSelected && (
+                        <Check size={12} style={{ color: s.color }} />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
+          {/* STRATEGY CATEGORY */}
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
               Strategy Category
             </label>
             <select
-              value={form.strategy}
-              onChange={(e) => set("strategy", e.target.value)}
+              value={form.strategyId} // CORRIGIDO: Vinculado ao id correto do estado
+              onChange={(e) => set("strategyId", e.target.value)}
               className={`${inputCls} cursor-pointer`}
             >
               {strategies.map((s) => (
-                <option key={s.id} value={s.name}>
+                <option key={s.id} value={s.id}>
+                  {" "}
+                  {/* CORRIGIDO: Passando s.id em vez do nome */}
                   {s.name}
                 </option>
               ))}
