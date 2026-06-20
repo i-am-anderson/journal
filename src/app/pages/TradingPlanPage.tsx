@@ -199,7 +199,7 @@ function TradingPlanPage() {
                 </div>
                 <div className="flex items-start gap-2">
                   <input type="checkbox" defaultChecked className="mt-0.5 rounded accent-emerald-400" />
-                  <span>Preencher o TradeLog informando o erro técnico ou execução perfeita.</span>
+                  <span>Preencher o DearMarket informando o erro técnico ou execução perfeita.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <input type="checkbox" defaultChecked className="mt-0.5 rounded accent-emerald-400" />

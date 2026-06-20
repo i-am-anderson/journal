@@ -12,8 +12,10 @@ function AddTradeModal({
   strategies,
   onClose,
   onSave,
-  availableErrorTags,
-  availableEmotions,
+  availableErrorTags = [],
+  availableEmotions = [],
+  availableTimeframes = [],
+  availableMarkets = [],
   initialTrade,
 }: AddTradeModalProps) {
   // Calcula a data atual formatada para <input type="datetime-local">
@@ -23,15 +25,26 @@ function AddTradeModal({
 
   // Se houver initialTrade (modo edição), converte o ISO salvo de volta para o formato do input local
   let initDateTime = defaultDateTime;
-  if (initialTrade && initialTrade.date) {
-    const d = new Date(initialTrade.date);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    initDateTime = d.toISOString().slice(0, 16);
+  let initExitDateTime = ""; // Data de saída começa vazia por padrão
+
+  if (initialTrade) {
+    if (initialTrade.date) {
+      const d = new Date(initialTrade.date);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      initDateTime = d.toISOString().slice(0, 16);
+    }
+    // Lida com a data de saída caso ela já exista no trade
+    if (initialTrade.exitDate) {
+      const ed = new Date(initialTrade.exitDate);
+      ed.setMinutes(ed.getMinutes() - ed.getTimezoneOffset());
+      initExitDateTime = ed.toISOString().slice(0, 16);
+    }
   }
 
   // Preenche o formulário com dados em branco (novo trade) ou dados do trade existente
   const [form, setForm] = useState({
     date: initDateTime,
+    exitDate: initExitDateTime,
     symbol: initialTrade?.symbol || "",
     side: initialTrade?.side || "long",
     entry: initialTrade?.entry || "",
@@ -41,6 +54,8 @@ function AddTradeModal({
     takeProfit: initialTrade?.takeProfit || "",
     strategyId: initialTrade?.strategyId || strategies[0]?.id || "",
     setupId: initialTrade?.setupId || setups[0]?.id || "",
+    market: initialTrade?.market || availableMarkets[0] || "", // Pega o 1º da config
+    timeframe: initialTrade?.timeframe || availableTimeframes[0] || "", // Pega o 1º da config
     notes: initialTrade?.notes || "",
     errorTags: initialTrade?.errorTags || [],
     emotion: initialTrade?.emotion || "",
@@ -98,11 +113,15 @@ function AddTradeModal({
     );
 
     const finalIsoDate = new Date(form.date).toISOString();
+    const finalIsoExitDate = form.exitDate
+      ? new Date(form.exitDate).toISOString()
+      : undefined;
 
     onSave({
       id: initialTrade?.id || uid(),
       accountId: initialTrade?.accountId || accountId,
       date: finalIsoDate,
+      exitDate: finalIsoExitDate,
       symbol: form.symbol.trim().toUpperCase(),
       side: form.side as Side,
       entry,
@@ -116,6 +135,8 @@ function AddTradeModal({
       pnlPct,
       strategyId: form.strategyId,
       setupId: form.setupId,
+      market: form.market, // Enviando o valor do select
+      timeframe: form.timeframe, // Enviando o valor do select
       notes: form.notes.trim(),
       images: form.images,
       errorTags: form.errorTags,
@@ -132,7 +153,9 @@ function AddTradeModal({
     !isNaN(parseFloat(form.exit as string)) &&
     form.size &&
     !isNaN(parseFloat(form.size as string)) &&
-    form.date;
+    form.date &&
+    form.market &&
+    form.timeframe;
 
   const inputCls =
     "w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40 transition-colors";
@@ -158,7 +181,7 @@ function AddTradeModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
-                Date & Time
+                Entry Date & Time
               </label>
               <input
                 type="datetime-local"
@@ -167,6 +190,21 @@ function AddTradeModal({
                 className={`${inputCls} date-input`}
               />
             </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                Exit Date & Time{" "}
+                <span className="normal-case opacity-50">(opt.)</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={form.exitDate}
+                onChange={(e) => set("exitDate", e.target.value)}
+                className={`${inputCls} date-input`}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 items-end">
             <div>
               <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
                 Symbol
@@ -179,27 +217,63 @@ function AddTradeModal({
                 className={inputCls}
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
-              Direction
-            </label>
-            <div className="flex rounded-lg border border-border overflow-hidden w-fit">
-              <button
-                onClick={() => set("side", "long")}
-                className={`px-8 py-2.5 text-sm font-mono font-medium transition-colors ${form.side === "long" ? "bg-emerald-400/15 text-emerald-400" : "bg-background text-muted-foreground hover:text-foreground"}`}
-              >
-                Long
-              </button>
-              <button
-                onClick={() => set("side", "short")}
-                className={`px-8 py-2.5 text-sm font-mono font-medium transition-colors ${form.side === "short" ? "bg-red-400/15 text-red-400" : "bg-background text-muted-foreground hover:text-foreground"}`}
-              >
-                Short
-              </button>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                Direction
+              </label>
+              <div className="flex rounded-lg border border-border overflow-hidden w-full">
+                <button
+                  onClick={() => set("side", "long")}
+                  className={`flex-1 py-2.5 text-sm font-mono font-medium transition-colors ${form.side === "long" ? "bg-emerald-400/15 text-emerald-400" : "bg-background text-muted-foreground hover:text-foreground"}`}
+                >
+                  Long
+                </button>
+                <button
+                  onClick={() => set("side", "short")}
+                  className={`flex-1 py-2.5 text-sm font-mono font-medium transition-colors ${form.side === "short" ? "bg-red-400/15 text-red-400" : "bg-background text-muted-foreground hover:text-foreground"}`}
+                >
+                  Short
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* ════════ BLOCO NOVO: MARKET & TIMEFRAME ════════ */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                Market
+              </label>
+              <select
+                value={form.market}
+                onChange={(e) => set("market", e.target.value)}
+                className={`${inputCls} cursor-pointer`}
+              >
+                {availableMarkets.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                Timeframe
+              </label>
+              <select
+                value={form.timeframe}
+                onChange={(e) => set("timeframe", e.target.value)}
+                className={`${inputCls} cursor-pointer`}
+              >
+                {availableTimeframes.map((tf) => (
+                  <option key={tf} value={tf}>
+                    {tf}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {/* ════════════════════════════════════════════════ */}
 
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -296,7 +370,6 @@ function AddTradeModal({
             </div>
           </div>
 
-          {/* SETUP PLAYBOOK */}
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
               Setup Playbook
@@ -308,7 +381,7 @@ function AddTradeModal({
             ) : (
               <div className="grid grid-cols-1 gap-1.5">
                 {setups.map((s) => {
-                  const isSelected = form.setupId === s.id;
+                  const isSelected = String(form.setupId) === String(s.id);
                   return (
                     <button
                       key={s.id}
@@ -342,27 +415,28 @@ function AddTradeModal({
             )}
           </div>
 
-          {/* STRATEGY CATEGORY */}
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
               Strategy Category
             </label>
             <select
-              value={form.strategyId} // CORRIGIDO: Vinculado ao id correto do estado
-              onChange={(e) => set("strategyId", e.target.value)}
+              value={String(form.strategyId)}
+              onChange={(e) => {
+                const selected = strategies.find(
+                  (st) => String(st.id) === e.target.value,
+                );
+                if (selected) set("strategyId", selected.id);
+              }}
               className={`${inputCls} cursor-pointer`}
             >
               {strategies.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {" "}
-                  {/* CORRIGIDO: Passando s.id em vez do nome */}
+                <option key={s.id} value={String(s.id)}>
                   {s.name}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* BLOCO: EMOCIONAL */}
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-2">
               Sentiment
@@ -385,7 +459,6 @@ function AddTradeModal({
             </div>
           </div>
 
-          {/* BLOCO: TAGS DE ERRO */}
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-2">
               Error Tags

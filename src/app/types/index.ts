@@ -4,6 +4,21 @@ export type Side = "long" | "short";
 export type Status = "win" | "loss" | "breakeven";
 export type Tone = "green" | "red" | "neutral";
 export type TradesView = "playbook" | "compact";
+export const views = [
+  "dashboard",
+  "journal",
+  "stats",
+  "setups",
+  "strategies",
+  "process",
+  "trading-plan",
+  "configs",
+] as const;
+
+export type View = (typeof views)[number];
+
+export const isView = (value: string): value is View =>
+  views.includes(value as View);
 
 /** Handler genérico para setters simples — elimina repetição nos Props abaixo */
 type Setter<T> = (value: T) => void;
@@ -24,6 +39,9 @@ export type Trade = {
   strategyId: string;
   setupId: string;
   status: Status;
+  timeframe: string;
+  market: string;
+  exitDate?: string;
   stopLoss?: number;
   takeProfit?: number;
   notes?: string;
@@ -206,6 +224,8 @@ export type AddTradeModalProps = {
   onSave: (trade: Trade) => void;
   availableErrorTags: string[];
   availableEmotions: string[];
+  availableTimeframes?: string[];
+  availableMarkets?: string[];
 };
 
 export type SetupModalProps = {
@@ -255,4 +275,10 @@ export type MonthlyProcessProgressProps = {
   entries: DailyProcess[];
   currentMonth: Date;
   currentGlobalGoalsCount: number;
+};
+
+export type NavItemsProps = {
+  id: View;
+  label: string;
+  icon: React.JSX.Element;
 };

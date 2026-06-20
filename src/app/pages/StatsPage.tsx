@@ -9,17 +9,33 @@ import {
   Bar,
   Cell,
 } from "recharts";
-import { Printer, Calendar } from "lucide-react"; // Importando ícones para o topo
+import { Printer, Calendar, Clock, BarChart3, Wallet } from "lucide-react";
 import StatCard from "../components/StatCard";
 import { fmtPnl, pnlColor, uid } from "../helpers/utils";
 
 import { StatsPageProps, Trade } from "../types";
 import useAdvancedStats from "../hooks/useAdvancedStats";
 
-const COLORS = ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#60a5fa"];
+const COLORS = ["#60a5fa", "#34d399", "#fbbf24", "#fb923c", "#f87171"];
 
 /* ══════════════════════════════════════════════════════════════════════
-   PAGE — Statistics
+    HELPERS FOR DURATION FORMATTING
+══════════════════════════════════════════════════════════════════════ */
+const fmtDuration = (ms: number): string => {
+  if (!ms || ms <= 0) return "—";
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${seconds}s`;
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+    PAGE — Statistics
 ══════════════════════════════════════════════════════════════════════ */
 function StatsPage({
   stats: initialStats,
@@ -28,7 +44,6 @@ function StatsPage({
   days,
   strategies,
 }: StatsPageProps) {
-  // Estados para o range de datas (formato YYYY-MM-DD do input nativo)
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
@@ -37,7 +52,7 @@ function StatsPage({
   // 0. Filtragem dos Trades pelo Range de Data
   const filteredTrades = useMemo(() => {
     return trades.filter((t: Trade) => {
-      const tradeDate = t.date.slice(0, 10); // Extrai "YYYY-MM-DD"
+      const tradeDate = t.date.slice(0, 10);
       if (startDate && tradeDate < startDate) return false;
       if (endDate && tradeDate > endDate) return false;
       return true;
@@ -58,6 +73,7 @@ function StatsPage({
         rr: 0,
         bestTrade: 0,
         worstTrade: 0,
+        globalAvgDuration: 0,
       };
     }
 
@@ -79,6 +95,22 @@ function StatsPage({
     const bestTrade = Math.max(...filteredTrades.map((t) => t.pnl));
     const worstTrade = Math.min(...filteredTrades.map((t) => t.pnl));
 
+    // Cálculo do Tempo Médio Global dos Trades
+    let durationSum = 0;
+    let durationCount = 0;
+    filteredTrades.forEach((t) => {
+      if (t.exitDate) {
+        const diff =
+          new Date(t.exitDate).getTime() - new Date(t.date).getTime();
+        if (diff > 0) {
+          durationSum += diff;
+          durationCount += 1;
+        }
+      }
+    });
+    const globalAvgDuration =
+      durationCount > 0 ? durationSum / durationCount : 0;
+
     return {
       totalPnl,
       total,
@@ -89,10 +121,11 @@ function StatsPage({
       rr,
       bestTrade,
       worstTrade,
+      globalAvgDuration,
     };
   }, [filteredTrades]);
 
-  // Recalcula a performance por estratégia localmente baseada nos trades filtrados
+  // Performance por estratégia local baseada nos trades filtrados
   const localStrategyStats = useMemo(() => {
     const map: Record<
       string,
@@ -103,7 +136,7 @@ function StatsPage({
 
       if (!map[t.strategyId]) {
         map[t.strategyId] = {
-          name: strategy?.name,
+          name: strategy?.name || "Unknown Strategy",
           trades: 0,
           wins: 0,
           pnl: 0,
@@ -122,9 +155,60 @@ function StatsPage({
         pnl: s.pnl,
       }))
       .sort((a, b) => b.pnl - a.pnl);
+  }, [filteredTrades, strategyMap]);
+
+  // Estatísticas por Ativo (Symbol) incluindo Tempo Médio
+  const assetStats = useMemo(() => {
+    const map: Record<
+      string,
+      {
+        symbol: string;
+        trades: number;
+        wins: number;
+        pnl: number;
+        durationSum: number;
+        durationCount: number;
+      }
+    > = {};
+
+    filteredTrades.forEach((t) => {
+      if (!map[t.symbol]) {
+        map[t.symbol] = {
+          symbol: t.symbol,
+          trades: 0,
+          wins: 0,
+          pnl: 0,
+          durationSum: 0,
+          durationCount: 0,
+        };
+      }
+      const current = map[t.symbol];
+      current.trades += 1;
+      if (t.pnl > 0) current.wins += 1;
+      current.pnl += t.pnl;
+
+      if (t.exitDate) {
+        const diff =
+          new Date(t.exitDate).getTime() - new Date(t.date).getTime();
+        if (diff > 0) {
+          current.durationSum += diff;
+          current.durationCount += 1;
+        }
+      }
+    });
+
+    return Object.values(map)
+      .map((a) => ({
+        symbol: a.symbol,
+        trades: a.trades,
+        winRate: a.trades > 0 ? (a.wins / a.trades) * 100 : 0,
+        pnl: a.pnl,
+        avgDuration: a.durationCount > 0 ? a.durationSum / a.durationCount : 0,
+      }))
+      .sort((a, b) => b.pnl - a.pnl);
   }, [filteredTrades]);
 
-  // Hook avançado agora consome apenas a lista filtrada
+  // Hook avançado consome apenas a lista filtrada
   const advStats = useAdvancedStats(filteredTrades);
 
   // 1. Agrupamento Diário adaptado para ISO String
@@ -137,12 +221,12 @@ function StatsPage({
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, pnl]: any) => ({
-        date: date.slice(5), // Apenas "MM-DD" para o eixo X
+        date: date.slice(5),
         pnl: parseFloat(pnl.toFixed(2)),
       }));
   }, [filteredTrades]);
 
-  // 2. Dia da Semana adaptado para ISO String
+  // 2. Dia da Semana com cálculo do Tempo Médio embutido
   const weekdayData = useMemo(() => {
     const pnlMap: Record<number, number> = {
       0: 0,
@@ -162,17 +246,48 @@ function StatsPage({
       5: 0,
       6: 0,
     };
+    const durationSumMap: Record<number, number> = {
+      0: 0,
+      1: 0,
+      2: 0,
+      3: 0,
+      4: 0,
+      5: 0,
+      6: 0,
+    };
+    const durationCountMap: Record<number, number> = {
+      0: 0,
+      1: 0,
+      2: 0,
+      3: 0,
+      4: 0,
+      5: 0,
+      6: 0,
+    };
 
     filteredTrades.forEach((t) => {
       const day = new Date(t.date).getDay();
       pnlMap[day] += t.pnl;
       countMap[day] += 1;
+
+      if (t.exitDate) {
+        const diff =
+          new Date(t.exitDate).getTime() - new Date(t.date).getTime();
+        if (diff > 0) {
+          durationSumMap[day] += diff;
+          durationCountMap[day] += 1;
+        }
+      }
     });
 
     return [1, 2, 3, 4, 5, 6, 0].map((day) => ({
       name: days[day],
       pnl: parseFloat(pnlMap[day].toFixed(2)),
       trades: countMap[day],
+      avgDuration:
+        durationCountMap[day] > 0
+          ? durationSumMap[day] / durationCountMap[day]
+          : 0,
     }));
   }, [filteredTrades, days]);
 
@@ -208,11 +323,13 @@ function StatsPage({
     }));
   }, [filteredTrades]);
 
-  // Função para disparar a impressão nativa
   const handlePrintReport = () => {
     window.print();
   };
 
+  /* ══════════════════════════════════════════════════════════════════════
+      TOOLTIPS DENTRO DOS GRÁFICOS
+  ══════════════════════════════════════════════════════════════════════ */
   function DailyTooltip({ active, payload }: any) {
     if (!active || !payload?.length) return null;
     const val = payload[0].value;
@@ -229,12 +346,22 @@ function StatsPage({
   function WeekdayTooltip({ active, payload }: any) {
     if (!active || !payload?.length) return null;
     const val = payload[0].value;
+    const avgDur = payload[0].payload.avgDuration;
     return (
-      <div className="bg-[#1a1d27] border border-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl">
-        <p className="text-muted-foreground mb-0.5">
+      <div className="bg-[#1a1d27] border border-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl space-y-1">
+        <p className="text-muted-foreground font-medium border-b border-border/40 pb-1 mb-1">
           {payload[0].payload.name} ({payload[0].payload.trades} trades)
         </p>
-        <span className={pnlColor(val)}>{fmtPnl(val)}</span>
+        <div className="flex justify-between gap-4">
+          <span className="text-muted-foreground">P&L Total:</span>
+          <span className={pnlColor(val)}>{fmtPnl(val)}</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-muted-foreground">Tempo Médio:</span>
+          <span className="text-sky-400 font-semibold">
+            {fmtDuration(avgDur)}
+          </span>
+        </div>
       </div>
     );
   }
@@ -256,9 +383,6 @@ function StatsPage({
     );
   }
 
-  /* ══════════════════════════════════════════════════════════════════════
-     COMPONENT — Error Performance
-  ══════════════════════════════════════════════════════════════════════ */
   const ErrorPerformance = ({ tradesList }: { tradesList: Trade[] }) => {
     const data = useMemo(() => {
       const map: Record<string, number> = {};
@@ -329,34 +453,23 @@ function StatsPage({
     );
   };
 
-  const maxPnl = Math.max(...localStrategyStats.map((s) => Math.abs(s.pnl)), 1);
+  const maxStrategyPnl = Math.max(
+    ...localStrategyStats.map((s) => Math.abs(s.pnl)),
+    1,
+  );
+  const maxAssetPnl = Math.max(...assetStats.map((a) => Math.abs(a.pnl)), 1);
 
   return (
     <div className="space-y-5" id="print-stats-area">
-      {/* ─── TRUQUE DE CSS PARA IMPRIMIR APENAS ESTA ÁREA ─── */}
       <style>{`
         @media print {
-          /* Esconde absolutamente tudo no body */
-          body * {
-            visibility: hidden;
-          }
-          /* Mostra apenas a nossa área de stats e os filhos dela */
-          #print-stats-area, #print-stats-area * {
-            visibility: visible;
-          }
-          /* Força a área de stats a ocupar o topo e a largura total da folha */
-          #print-stats-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 0;
-            margin: 0;
-          }
+          body * { visibility: hidden; }
+          #print-stats-area, #print-stats-area * { visibility: visible; }
+          #print-stats-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; }
         }
       `}</style>
 
-      {/* ─── FILTROS DE DATA E BOTÃO DE IMPRESSÃO (Escondidos ao Imprimir) ─── */}
+      {/* ─── FILTROS DE DATA E IMPRESSÃO ─── */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-card border border-border rounded-xl p-4 print:hidden">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
@@ -400,7 +513,7 @@ function StatsPage({
         </button>
       </div>
 
-      {/* Cabeçalho exclusivo para o Modo de Impressão */}
+      {/* Cabeçalho de Impressão */}
       <div className="hidden print:block border-b border-border pb-4 mb-4">
         <h1 className="text-2xl font-bold tracking-tight">
           Trading Performance Report
@@ -412,9 +525,9 @@ function StatsPage({
         </p>
       </div>
 
+      {/* ─── CARDS ORIGINAIS INALTERADOS ─── */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold">Risk & Performance Metrics</h3>
-
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Total P&L"
@@ -447,7 +560,7 @@ function StatsPage({
                 ? advStats.profitFactor.rating
                 : { label: "N/A", color: "gray" }
             }
-            tooltip="A proporção entre o lucro total e o prejuízo total. Acima de 1.5 é considerado um sistema sustentável. Acima de 2.0 é excelente."
+            tooltip="A proporção entre o lucro total e o prejuízo total."
           />
           <StatCard
             label="Expectancy"
@@ -458,7 +571,7 @@ function StatsPage({
                 ? advStats.expectancy.rating
                 : { label: "N/A", color: "gray" }
             }
-            tooltip="O retorno matemático esperado para cada trade executado. Se você jogar uma moeda viciada 100 vezes, quanto você ganha em média por jogada."
+            tooltip="O retorno matemático esperado por trade."
           />
           <StatCard
             label="Sharpe Ratio"
@@ -469,7 +582,7 @@ function StatsPage({
                 ? advStats.sharpe.rating
                 : { label: "N/A", color: "gray" }
             }
-            tooltip="Mede o retorno ajustado ao risco. Penaliza tanto a volatilidade de alta quanto a de baixa. Sharpe alto significa curvas de capital mais suaves."
+            tooltip="Mede o retorno ajustado ao risco."
           />
           <StatCard
             label="Sortino Ratio"
@@ -480,14 +593,14 @@ function StatsPage({
                 ? advStats.sortino.rating
                 : { label: "N/A", color: "gray" }
             }
-            tooltip="Similar ao Sharpe, mas só penaliza a volatilidade negativa (drawdowns). É geralmente considerado mais útil para traders do que o Sharpe."
+            tooltip="Similar ao Sharpe, mas só penaliza a volatilidade negativa."
           />
           <StatCard
             label="Max Drawdown"
             value={`${advStats ? "-$" + advStats.maxDrawdown.val.toFixed(2) : "—"}`}
             sub="Peak to trough drop"
             tone="red"
-            tooltip="O maior declínio absoluto da sua curva de capital. Representa o máximo de dor financeira que você experimentou no pior cenário."
+            tooltip="O maior declínio absoluto da sua curva de capital."
           />
           <StatCard
             label="Recovery Factor"
@@ -498,7 +611,7 @@ function StatsPage({
                 ? advStats.recoveryFactor.rating
                 : { label: "N/A", color: "gray" }
             }
-            tooltip="Mostra quão bem o seu sistema se recupera de drawdowns. Um fator acima de 2 significa que o sistema já lucrou pelo menos o dobro da sua maior perda."
+            tooltip="Mostra quão bem o seu sistema se recupera de drawdowns."
           />
           <StatCard
             label="Calmar Ratio"
@@ -509,14 +622,63 @@ function StatsPage({
                 ? advStats.calmar.rating
                 : { label: "N/A", color: "gray" }
             }
-            tooltip="Mede a rentabilidade anualizada em relação ao Risco Máximo (Max Drawdown). Um Calmar acima de 3 geralmente indica um sistema fantástico."
+            tooltip="Mede a rentabilidade anualizada em relação ao Risco Máximo."
           />
           <StatCard
             label="Ulcer Index"
             value={advStats ? advStats.ulcerIndex.val.toFixed(2) : "—"}
             sub="Drawdown depth & duration"
-            tooltip="Mede a profundidade E a duração dos drawdowns. Quanto maior o índice, maior o estresse (ou chance de ter úlcera) segurando essa estratégia."
+            tooltip="Mede a profundidade E a duração dos drawdowns."
           />
+        </div>
+      </div>
+
+      {/* ─── NOVA SEÇÃO: TIME & TIMING PERFORMANCE INFO CARDS ─── */}
+      <div className="bg-[#141722] border border-border/60 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4 break-inside-avoid">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-400">
+            <Clock size={18} />
+          </div>
+          <div>
+            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+              Tempo Médio Global
+            </p>
+            <p className="text-base font-semibold font-mono text-sky-400 mt-0.5">
+              {fmtDuration(localStats.globalAvgDuration)}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 px-2 border-t md:border-t-0 md:border-x border-border/40 py-2 md:py-0">
+          <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+            <BarChart3 size={18} />
+          </div>
+          <div>
+            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+              Dia Mais Eficiente
+            </p>
+            <p className="text-base font-semibold text-foreground mt-0.5">
+              {weekdayData.reduce(
+                (prev, current) => (current.pnl > prev.pnl ? current : prev),
+                weekdayData[0],
+              )?.name || "—"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-400">
+            <Wallet size={18} />
+          </div>
+          <div>
+            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+              Ativo Mais Lucrativo
+            </p>
+            <p className="text-base font-semibold text-foreground mt-0.5 font-mono">
+              {assetStats[0]?.symbol || "—"}{" "}
+              <span className="text-xs text-emerald-400 font-normal">
+                ({fmtPnl(assetStats[0]?.pnl || 0)})
+              </span>
+            </p>
+          </div>
         </div>
       </div>
 
@@ -562,12 +724,14 @@ function StatsPage({
         )}
       </div>
 
-      {/* Linha 2 de Gráficos */}
+      {/* Linha 2 de Gráficos: Dia da Semana e Horários (Enriquecidos com dados de tempo no Tooltip) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 break-inside-avoid">
         <div className="bg-card border border-border rounded-xl p-5">
-          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground mb-4">
-            Day of Week P&L
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
+              Day of Week P&L & Hold Time
+            </p>
+          </div>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart
               data={weekdayData}
@@ -635,6 +799,75 @@ function StatsPage({
         </div>
       </div>
 
+      {/* ─── NOVA SEÇÃO MODIFICADA: TABELA COMPACTA DE ANÁLISE POR ATIVO (P&L + TEMPO MÉDIO) ─── */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden break-inside-avoid">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
+            Performance & Hold Time by Asset
+          </p>
+          <span className="text-[10px] font-mono text-muted-foreground">
+            Sorted by Net P&L
+          </span>
+        </div>
+        {assetStats.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-10">
+            No data yet
+          </p>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {assetStats.map((a) => (
+              <div
+                key={a.symbol}
+                className="px-5 py-3.5 hover:bg-secondary/20 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-semibold font-mono text-foreground tracking-wide w-16">
+                      {a.symbol}
+                    </span>
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
+                      <span>
+                        {a.trades} {a.trades === 1 ? "trade" : "trades"}
+                      </span>
+                      <span>·</span>
+                      <span
+                        className={
+                          a.winRate >= 50
+                            ? "text-emerald-400"
+                            : "text-amber-400"
+                        }
+                      >
+                        {a.winRate.toFixed(0)}% WR
+                      </span>
+                      <span>·</span>
+                      <span className="flex items-center gap-1 text-sky-400 bg-sky-500/5 px-1.5 py-0.5 rounded">
+                        <Clock size={11} />{" "}
+                        {fmtDuration(a.avgDuration) === "—"
+                          ? "Open"
+                          : fmtDuration(a.avgDuration) + " avg"}{" "}
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    className={`font-mono text-sm font-bold ${pnlColor(a.pnl)}`}
+                  >
+                    {fmtPnl(a.pnl)}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${a.pnl >= 0 ? "bg-emerald-400/70" : "bg-red-400/70"}`}
+                    style={{
+                      width: `${(Math.abs(a.pnl) / maxAssetPnl) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Gráfico de Erros */}
       <div className="bg-card border border-border rounded-xl p-5 break-inside-avoid">
         <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground mb-4">
@@ -677,7 +910,9 @@ function StatsPage({
               <div className="h-1 rounded-full bg-secondary overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${s.pnl >= 0 ? "bg-emerald-400/60" : "bg-red-400/60"}`}
-                  style={{ width: `${(Math.abs(s.pnl) / maxPnl) * 100}%` }}
+                  style={{
+                    width: `${(Math.abs(s.pnl) / maxStrategyPnl) * 100}%`,
+                  }}
                 />
               </div>
             </div>

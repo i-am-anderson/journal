@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Plus, X, Calendar, Clock, Globe, Palette, Heart, CheckSquare } from "lucide-react";
+import {
+  Plus,
+  X,
+  Calendar,
+  Clock,
+  Globe,
+  Palette,
+  Heart,
+  CheckSquare,
+} from "lucide-react";
 
 import { ConfigsPageProps } from "../types";
 
@@ -21,8 +30,10 @@ export default function ConfigsPage({
   setEmotions,
   processGoals,
   setProcessGoals,
-}: ConfigsPageProps & { processGoals: string[]; setProcessGoals: (g: string[]) => void }) {
-  
+}: ConfigsPageProps & {
+  processGoals: string[];
+  setProcessGoals: (g: string[]) => void;
+}) {
   const [newTimeframe, setNewTimeframe] = useState("");
   const [newMarket, setNewMarket] = useState("");
   const [newColor, setNewColor] = useState("#ffffff");
@@ -71,7 +82,7 @@ export default function ConfigsPage({
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
           Customize global parameters, labels, and visual identities used across
-          your TradeLog.
+          your DearMarket.
         </p>
       </div>
 
@@ -376,7 +387,8 @@ export default function ConfigsPage({
             </h3>
           </div>
           <p className="text-xs text-muted-foreground mb-4">
-            Defina as regras inegociáveis do seu operacional para avaliar no Diário. (ex: Max 3 stops no dia).
+            Defina as regras inegociáveis do seu operacional para avaliar no
+            Diário. (ex: Max 3 stops no dia).
           </p>
 
           <div className="flex gap-2 mb-4">
@@ -405,7 +417,7 @@ export default function ConfigsPage({
               <Plus size={14} /> Add
             </button>
           </div>
-          
+
           <div className="flex flex-col gap-2">
             {processGoals.map((goal) => (
               <span
@@ -414,7 +426,9 @@ export default function ConfigsPage({
               >
                 <span className="font-medium truncate">{goal}</span>
                 <button
-                  onClick={() => handleRemove(goal, processGoals, setProcessGoals)}
+                  onClick={() =>
+                    handleRemove(goal, processGoals, setProcessGoals)
+                  }
                   className="text-emerald-400 hover:text-red-400 shrink-0"
                 >
                   <X size={12} />
@@ -423,7 +437,6 @@ export default function ConfigsPage({
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );

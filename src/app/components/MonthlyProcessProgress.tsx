@@ -22,14 +22,12 @@ function MonthlyProcessProgress({
   let totalCompletedGoals = 0;
 
   filteredEntries.forEach((entry) => {
-    const savedGoalsKeys = Object.keys(entry.checklist || {});
+    // const savedGoalsKeys = Object.keys(entry.checklist || {});
 
     // Se o dia foi registrado, usamos o número de metas que existia nele (evita o bug)
     // Se estiver vazio mas o dia foi fechado, assume o global corrente
-    const goalsInDay =
-      savedGoalsKeys.length > 0
-        ? savedGoalsKeys.length
-        : currentGlobalGoalsCount;
+    // const goalsInDay = savedGoalsKeys.length > 0 ? savedGoalsKeys.length : currentGlobalGoalsCount;
+    const goalsInDay = currentGlobalGoalsCount;
 
     totalPossibleGoals += goalsInDay;
     totalCompletedGoals += Object.values(entry.checklist || {}).filter(

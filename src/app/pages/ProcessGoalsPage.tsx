@@ -47,14 +47,17 @@ export default function ProcessGoalsPage({
   // 🔥 CORREÇÃO DO BUG: Calcula o score usando apenas as metas salvas na estrutura daquele dia
   const getDisciplineScore = (dp: DailyProcess | null) => {
     if (!dp) return null;
-    
+
     const savedGoalsKeys = Object.keys(dp.checklist || {});
     // Se o dia já foi salvo, usamos a quantidade de metas que ele tinha gravado
-    const totalGoalsCount = savedGoalsKeys.length > 0 ? savedGoalsKeys.length : processGoals.length;
-    
+    const totalGoalsCount =
+      savedGoalsKeys.length > 0 ? savedGoalsKeys.length : processGoals.length;
+
     if (totalGoalsCount === 0) return null;
-    
-    const checkedCount = Object.values(dp.checklist || {}).filter(Boolean).length;
+
+    const checkedCount = Object.values(dp.checklist || {}).filter(
+      Boolean,
+    ).length;
     return (checkedCount / totalGoalsCount) * 100;
   };
 
@@ -66,7 +69,6 @@ export default function ProcessGoalsPage({
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      
       {/* 👇 BARRA DE PROGRESSO INTEGRADA (Conectada ao mês do calendário) */}
       <MonthlyProcessProgress
         entries={dailyProcess}
@@ -149,7 +151,10 @@ export default function ProcessGoalsPage({
             return (
               <div
                 key={dateStr}
-                onClick={() => setSelectedDate(dateStr)}
+                onClick={() => {
+                  if (pnl) setSelectedDate(dateStr);
+                  else alert("⚠️ Você não possui nenhum trade nessa data!");
+                }}
                 className={`border-r border-b border-border/50 p-2 cursor-pointer hover:bg-secondary/40 transition-colors flex flex-col justify-between border-l-4 ${ringColor}`}
               >
                 <div className="flex justify-between items-start">

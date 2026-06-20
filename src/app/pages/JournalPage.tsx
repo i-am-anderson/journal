@@ -38,7 +38,7 @@ function JournalPage({
   setFilterDay,
   days,
   displayMode,
-  setDisplayMode
+  setDisplayMode,
 }: JournalPageProps) {
   const setupMap = Object.fromEntries(setups.map((s) => [s.id, s]));
   const strategyMap = Object.fromEntries(strategies.map((s) => [s.id, s]));
@@ -226,11 +226,13 @@ function JournalPage({
               <div class="header-meta">
                 <span class="badge ${trade.status}">${trade.status}</span>
                 ${setup ? `<span class="badge" style="color: ${setup?.color}; border-color: ${setup?.color}55; background-color: ${setup?.color}10;">Setup: ${setup?.name}</span>` : ""}
-                <span class="badge" style="color: ${strategy?.color}; border-color: ${strategy?.color}55; background-color: ${strategy?.color}10;">Strategy: ${trade.strategy}</span>
+                <span class="badge" style="color: ${strategy?.color}; border-color: ${strategy?.color}55; background-color: ${strategy?.color}10;">Strategy: ${trade.strategyId ? strategy?.name : trade.strategy}</span>
               </div>
             </div>
-            <div class="date-badge">${fmtDate(trade.date)}</div>
-            <div class="date-badge">${fmtTime(trade.date)}</div>
+            <div style="text-align: right;">
+              <div class="date-badge">In: ${fmtDate(trade.date)} ${fmtTime(trade.date)}</div>
+              ${trade.exitDate ? `<div class="date-badge" style="margin-top: 4px;">Out: ${fmtDate(trade.exitDate)} ${fmtTime(trade.exitDate)}</div>` : ""}
+            </div>
           </div>
 
           <div class="grid">
@@ -259,6 +261,14 @@ function JournalPage({
             <div class="grid-item">
               <div class="label">Planned R/R</div>
               <div class="value">${plannedRR}R</div>
+            </div>
+            <div class="grid-item">
+              <div class="label">Market</div>
+              <div class="value">${trade.market || "N/A"}</div>
+            </div>
+            <div class="grid-item">
+              <div class="label">Timeframe</div>
+              <div class="value">${trade.timeframe || "N/A"}</div>
             </div>
           </div>
 
@@ -340,7 +350,7 @@ function JournalPage({
         >
           <option value="all">All Strategies</option>
           {strategies.map((s) => (
-            <option key={s.id} value={s.name}>
+            <option key={s.id} value={s.id}>
               {s.name}
             </option>
           ))}
@@ -489,7 +499,7 @@ function JournalPage({
                         backgroundColor: strategy?.color + "18",
                       }}
                     >
-                      {strategy?.name}
+                      {strategy?.name || trade.strategyId || "No Strategy"}
                     </span>
                   </div>
                   <div className="w-28 shrink-0 text-right">
@@ -547,6 +557,22 @@ function JournalPage({
                           {trade.status}
                         </span>
                       </div>
+
+                      {/* EXIT DATE */}
+                      {trade.exitDate && (
+                        <div>
+                          <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                            Exit Date
+                          </p>
+                          <p className="text-sm font-mono text-foreground font-semibold">
+                            {fmtDate(trade.exitDate)}{" "}
+                            <span className="text-xs font-normal text-muted-foreground">
+                              {fmtTime(trade.exitDate)}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+
                       <div>
                         <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
                           Strategy Focus
@@ -568,6 +594,25 @@ function JournalPage({
                             : "No Setup"}
                         </p>
                       </div>
+
+                      {/* NOVOS CAMPOS: MARKET E TIMEFRAME */}
+                      <div>
+                        <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                          Market
+                        </p>
+                        <p className="text-sm font-mono text-foreground font-semibold">
+                          {trade.market || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                          Timeframe
+                        </p>
+                        <p className="text-sm font-mono text-foreground font-semibold">
+                          {trade.timeframe || "N/A"}
+                        </p>
+                      </div>
+
                       {trade.stopLoss && trade.takeProfit && trade.entry && (
                         <div>
                           <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
@@ -682,7 +727,7 @@ function JournalPage({
                   ) : (
                     <div className="w-full h-48 bg-secondary/10 border-b border-border">
                       <img
-                        src={"/cover.jpg"}
+                        src={"logo.png"}
                         alt="Primary Chart"
                         className="w-full h-full object-cover"
                       />
@@ -703,8 +748,16 @@ function JournalPage({
                             {trade.side}
                           </span>
                         </div>
-                        <p className="text-xs font-mono text-muted-foreground">
-                          {fmtDate(trade.date)}, {fmtTime(trade.date)}
+
+                        {/* EXIT DATE NO PLAYBOOK */}
+                        <p className="text-xs font-mono text-muted-foreground mt-0.5">
+                          In: {fmtDate(trade.date)} {fmtTime(trade.date)}
+                          {trade.exitDate && (
+                            <span className="block opacity-75">
+                              Out: {fmtDate(trade.exitDate)}{" "}
+                              {fmtTime(trade.exitDate)}
+                            </span>
+                          )}
                         </p>
                       </div>
 
@@ -725,6 +778,16 @@ function JournalPage({
 
                     {/* Tags */}
                     <div className="flex flex-wrap gap-1.5">
+                      {trade.market && (
+                        <span className="text-[10px] text-muted-foreground font-mono bg-secondary/20 px-2 py-0.5 rounded border border-border">
+                          {trade.market}
+                        </span>
+                      )}
+                      {trade.timeframe && (
+                        <span className="text-[10px] text-muted-foreground font-mono bg-secondary/20 px-2 py-0.5 rounded border border-border">
+                          {trade.timeframe}
+                        </span>
+                      )}
                       {setup && (
                         <span
                           className="text-[10px] font-mono px-2 py-0.5 rounded-full border inline-flex items-center gap-1"
@@ -745,7 +808,7 @@ function JournalPage({
                           backgroundColor: strategy?.color + "18",
                         }}
                       >
-                        {strategy?.name}
+                        {strategy?.name || trade.strategyId || "No Strategy"}
                       </span>
                     </div>
 
@@ -774,7 +837,7 @@ function JournalPage({
                     <button
                       onClick={() => onEditRequest(trade)}
                       className="text-muted-foreground hover:text-blue-400 transition-colors"
-                      title="Print"
+                      title="Edit"
                     >
                       <Pencil size={14} />
                     </button>

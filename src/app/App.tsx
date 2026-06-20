@@ -39,6 +39,9 @@ import {
   Account,
   TradesView,
   DailyProcess,
+  View,
+  NavItemsProps,
+  isView,
 } from "./types";
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -60,7 +63,10 @@ export default function App() {
   const [dailyProcess, setDailyProcess] = useState<DailyProcess[]>([]);
 
   // ─── ESTADOS DE UI / NAVEGAÇÃO ──────────────────────────────────────
-  const [view, setView] = useState("dashboard");
+  const journal_page = localStorage.getItem("journal_page");
+  const [view, setView] = useState<View>(
+    journal_page && isView(journal_page) ? journal_page : "dashboard",
+  );
   const [showAdd, setShowAdd] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");
@@ -186,6 +192,13 @@ export default function App() {
     processGoals,
     dailyProcess,
   ]);
+
+  /* ══════════════════════════════════════════════════════════════════════
+    3. SALVA A ÚLTIMA PÁGINA VISITADA
+  ══════════════════════════════════════════════════════════════════════ */
+  useEffect(() => {
+    localStorage.setItem("journal_page", view);
+  }, [view]);
 
   /* ══════════════════════════════════════════════════════════════════════
     FILTRO DE CONTEXTO NUMÉRICO E MEMOS
@@ -353,7 +366,7 @@ export default function App() {
     );
   }
 
-  const navItems = [
+  const navItems: NavItemsProps[] = [
     {
       id: "dashboard",
       label: "Dashboard",
@@ -376,13 +389,24 @@ export default function App() {
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       {/* Sidebar */}
       <aside className="w-65 shrink-0 flex flex-col border-r border-border">
-        <div className="px-5 py-5 border-b border-border flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-emerald-400/15 flex items-center justify-center">
-            <Activity size={14} className="text-emerald-400" />
+        <div className="px-5 py-5 border-b border-border">
+          <div className="flex items-center gap-3">
+            {/* Coluna 1: Logo */}
+            <div className="w-10 h-10 rounded-lg bg-emerald-400/15 flex items-center justify-center shrink-0">
+              <img src="logo.png" alt="DearMarket Logo" className="rounded-lg" />
+            </div>
+
+            {/* Coluna 2: Nome + Slogan */}
+            <div className="flex flex-col">
+              <span className="font-mono text-sm font-bold tracking-tight">
+                DearMarket
+              </span>
+
+              <span className="text-xs italic text-muted-foreground/75">
+                Every trade tells a story
+              </span>
+            </div>
           </div>
-          <span className="font-mono text-sm font-bold tracking-tight">
-            TradeLog
-          </span>
         </div>
 
         {/* SELETOR DE AMBIENTES */}
@@ -438,12 +462,12 @@ export default function App() {
               {item.icon}
               {item.label}
               {item.id === "setups" && (
-                <span className="ml-auto text-[10px] font-mono bg-secondary rounded-full px-1.5 py-0.5 text-muted-foreground">
+                <span className="ml-auto text-[10px] font-mono bg-emerald-400 rounded-full px-1.5 py-0.5 text-background">
                   {setups.length}
                 </span>
               )}
               {item.id === "strategies" && (
-                <span className="ml-auto text-[10px] font-mono bg-secondary rounded-full px-1.5 py-0.5 text-muted-foreground">
+                <span className="ml-auto text-[10px] font-mono bg-emerald-400 rounded-full px-1.5 py-0.5 text-background">
                   {strategies.length}
                 </span>
               )}
@@ -695,6 +719,8 @@ export default function App() {
           accountId={activeAccountId === "" ? accounts[0].id : activeAccountId}
           availableErrorTags={errorTags}
           availableEmotions={emotions}
+          availableTimeframes={timeframes}
+          availableMarkets={markets}
           setups={setups}
           strategies={strategies}
           initialTrade={editingTrade}
