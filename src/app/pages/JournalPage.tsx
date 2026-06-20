@@ -259,6 +259,10 @@ function JournalPage({
               <div class="value" style="color: #10b981;">${trade.takeProfit ? `$${trade.takeProfit.toFixed(2)}` : "N/A"}</div>
             </div>
             <div class="grid-item">
+              <div class="label">Quantity</div>
+              <div class="value">${trade.size || "N/A"}</div>
+            </div>
+            <div class="grid-item">
               <div class="label">Planned R/R</div>
               <div class="value">${plannedRR}R</div>
             </div>
@@ -420,7 +424,7 @@ function JournalPage({
             <span className="w-28 shrink-0 text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground">
               Time
             </span>
-            <span className="w-20 shrink-0 text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground">
+            <span className="w-24 shrink-0 text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground">
               Symbol
             </span>
             <span className="w-14 shrink-0 text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground">
@@ -458,9 +462,17 @@ function JournalPage({
                   <span className="w-28 shrink-0 text-xs font-mono text-muted-foreground">
                     {fmtTime(trade.date)}
                   </span>
-                  <span className="w-20 shrink-0 font-mono text-sm font-semibold">
-                    {trade.symbol}
-                  </span>
+                  <div className="w-24 shrink-0 flex flex-col gap-0.5">
+                    <span className="font-mono text-sm font-semibold">
+                      {trade.symbol}
+                    </span>
+                    {!trade.exitDate && (
+                      <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[8px] font-mono font-bold uppercase px-1.5 py-0.5 rounded shadow-sm leading-none w-fit">
+                        <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                        Live
+                      </span>
+                    )}
+                  </div>
                   <div className="w-14 shrink-0">
                     <span
                       className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-full border ${trade.side === "long" ? "text-emerald-400 border-emerald-400/25 bg-emerald-400/10" : "text-red-400 border-red-400/25 bg-red-400/10"}`}
@@ -595,6 +607,14 @@ function JournalPage({
                         </p>
                       </div>
 
+                      <div>
+                        <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                          Quantity
+                        </p>
+                        <p className="text-sm font-mono text-foreground font-semibold">
+                          {trade.size || "N/A"}
+                        </p>
+                      </div>
                       {/* NOVOS CAMPOS: MARKET E TIMEFRAME */}
                       <div>
                         <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
@@ -720,17 +740,34 @@ function JournalPage({
                         alt="Primary Chart"
                         className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                       />
-                      <div className="absolute top-3 right-3 bg-background/80 backdrop-blur px-2 py-1 rounded text-[10px] font-mono text-muted-foreground">
-                        +{trade.images?.length || 0} view
+
+                      {/* Badges no canto superior direito */}
+                      <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
+                        {!trade.exitDate && (
+                          <div className="flex items-center gap-1 bg-red-600 text-white text-[10px] font-mono font-bold uppercase px-2 py-1 rounded shadow-lg">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            Live
+                          </div>
+                        )}
+                        <div className="bg-background/80 backdrop-blur px-2 py-1 rounded text-[10px] font-mono text-muted-foreground">
+                          +{trade.images?.length || 0} view
+                        </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="w-full h-48 bg-secondary/10 border-b border-border">
+                    <div className="w-full h-48 relative bg-secondary/10 border-b border-border">
                       <img
                         src={"logo.png"}
                         alt="Primary Chart"
                         className="w-full h-full object-cover"
                       />
+
+                      {!trade.exitDate && (
+                        <div className="absolute top-3 right-3 flex items-center gap-1 bg-red-600 text-white text-[10px] font-mono font-bold uppercase px-2 py-1 rounded shadow-lg">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                          Live
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -752,12 +789,24 @@ function JournalPage({
                         {/* EXIT DATE NO PLAYBOOK */}
                         <p className="text-xs font-mono text-muted-foreground mt-0.5">
                           In: {fmtDate(trade.date)} {fmtTime(trade.date)}
-                          {trade.exitDate && (
+                          {
                             <span className="block opacity-75">
-                              Out: {fmtDate(trade.exitDate)}{" "}
-                              {fmtTime(trade.exitDate)}
+                              Out:{" "}
+                              {trade.exitDate
+                                ? fmtDate(trade.exitDate) +
+                                  " " +
+                                  fmtTime(trade.exitDate)
+                                : "Live"}
                             </span>
-                          )}
+                          }
+                        </p>
+
+                        <p className="text-xs font-mono text-muted-foreground mt-0.5">
+                          {
+                            <span className="block opacity-75">
+                              Quantity: {trade.size || "N/A"}
+                            </span>
+                          }
                         </p>
                       </div>
 

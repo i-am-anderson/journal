@@ -8,8 +8,21 @@ import {
   BarChart,
   Bar,
   Cell,
+  AreaChart,
+  Area,
 } from "recharts";
-import { Printer, Calendar, Clock, BarChart3, Wallet } from "lucide-react";
+import {
+  Printer,
+  Calendar,
+  Clock,
+  BarChart3,
+  Wallet,
+  Flame,
+  AlertTriangle,
+  Target,
+  Repeat,
+  Activity,
+} from "lucide-react";
 import StatCard from "../components/StatCard";
 import { fmtPnl, pnlColor, uid } from "../helpers/utils";
 
@@ -17,6 +30,10 @@ import { StatsPageProps, Trade } from "../types";
 import useAdvancedStats from "../hooks/useAdvancedStats";
 
 const COLORS = ["#60a5fa", "#34d399", "#fbbf24", "#fb923c", "#f87171"];
+
+// Limite de trades/dia a partir do qual consideramos "possível overtrading".
+// Ajuste esse número para o que fizer sentido para o seu estilo operacional.
+const OVERTRADING_DAILY_THRESHOLD = 5;
 
 /* ══════════════════════════════════════════════════════════════════════
     HELPERS FOR DURATION FORMATTING
@@ -43,11 +60,13 @@ function StatsPage({
   trades,
   days,
   strategies,
+  setups = [],
 }: StatsPageProps) {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
   const strategyMap = Object.fromEntries(strategies.map((s) => [s.id, s]));
+  const setupMap = Object.fromEntries(setups.map((s) => [s.id, s]));
 
   // 0. Filtragem dos Trades pelo Range de Data
   const filteredTrades = useMemo(() => {
@@ -208,21 +227,314 @@ function StatsPage({
       .sort((a, b) => b.pnl - a.pnl);
   }, [filteredTrades]);
 
+  // Performance por Setup (separado de Strategy) — usa o prop opcional `setups`
+  const setupStats = useMemo(() => {
+    const map: Record<
+      string,
+      { name: string; trades: number; wins: number; pnl: number }
+    > = {};
+    filteredTrades.forEach((t) => {
+      const key = t.setupId || "none";
+      const setup = setupMap[t.setupId];
+      if (!map[key]) {
+        map[key] = {
+          name:
+            setup?.name ||
+            (t.setupId ? `Setup ${t.setupId.slice(0, 6)}` : "No Setup"),
+          trades: 0,
+          wins: 0,
+          pnl: 0,
+        };
+      }
+      map[key].trades += 1;
+      if (t.pnl > 0) map[key].wins += 1;
+      map[key].pnl += t.pnl;
+    });
+
+    return Object.values(map)
+      .map((s) => ({
+        name: s.name,
+        trades: s.trades,
+        winRate: s.trades > 0 ? (s.wins / s.trades) * 100 : 0,
+        pnl: s.pnl,
+      }))
+      .sort((a, b) => b.pnl - a.pnl);
+  }, [filteredTrades, setupMap]);
+
+  // Performance Long vs Short — revela viés direcional
+  const sideStats = useMemo(() => {
+    const sides: Array<"long" | "short"> = ["long", "short"];
+    return sides.map((side) => {
+      const list = filteredTrades.filter((t) => t.side === side);
+      const wins = list.filter((t) => t.pnl > 0).length;
+      const pnl = list.reduce((sum, t) => sum + t.pnl, 0);
+      return {
+        side,
+        trades: list.length,
+        winRate: list.length > 0 ? (wins / list.length) * 100 : 0,
+        pnl,
+      };
+    });
+  }, [filteredTrades]);
+
   // Hook avançado consome apenas a lista filtrada
   const advStats = useAdvancedStats(filteredTrades);
 
-  // 1. Agrupamento Diário adaptado para ISO String
+  // ─── DISCIPLINA: streaks, frequência diária e "revenge trading" ───
+  const disciplineStats = useMemo(() => {
+    const sorted = [...filteredTrades].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+
+    // Sequências de vitórias/perdas consecutivas
+    let maxWinStreak = 0;
+    let maxLossStreak = 0;
+    let runningWin = 0;
+    let runningLoss = 0;
+
+    sorted.forEach((t) => {
+      if (t.pnl > 0) {
+        runningWin += 1;
+        runningLoss = 0;
+      } else if (t.pnl < 0) {
+        runningLoss += 1;
+        runningWin = 0;
+      } else {
+        runningWin = 0;
+        runningLoss = 0;
+      }
+      maxWinStreak = Math.max(maxWinStreak, runningWin);
+      maxLossStreak = Math.max(maxLossStreak, runningLoss);
+    });
+    // Streak "atual" = a sequência no final da série filtrada (mais recente)
+    const curWinStreak = runningWin;
+    const curLossStreak = runningLoss;
+
+    // Frequência diária de trades
+    const perDay: Record<string, number> = {};
+    sorted.forEach((t) => {
+      const day = t.date.slice(0, 10);
+      perDay[day] = (perDay[day] ?? 0) + 1;
+    });
+    const dayEntries = Object.entries(perDay);
+    const avgTradesPerDay =
+      dayEntries.length > 0
+        ? dayEntries.reduce((sum, [, c]) => sum + c, 0) / dayEntries.length
+        : 0;
+    const maxTradesDayEntry = dayEntries.reduce(
+      (best, entry) => (entry[1] > (best?.[1] ?? 0) ? entry : best),
+      null as [string, number] | null,
+    );
+    const overtradingDays = dayEntries.filter(
+      ([, c]) => c > OVERTRADING_DAILY_THRESHOLD,
+    ).length;
+
+    // P&L médio em dias de overtrading vs dias normais — prova (ou não) se
+    // operar demais está custando dinheiro
+    let overtradingPnl = 0;
+    let overtradingCount = 0;
+    let normalPnl = 0;
+    let normalCount = 0;
+    Object.entries(perDay).forEach(([day, count]) => {
+      const dayPnl = sorted
+        .filter((t) => t.date.slice(0, 10) === day)
+        .reduce((sum, t) => sum + t.pnl, 0);
+      if (count > OVERTRADING_DAILY_THRESHOLD) {
+        overtradingPnl += dayPnl;
+        overtradingCount += 1;
+      } else {
+        normalPnl += dayPnl;
+        normalCount += 1;
+      }
+    });
+
+    // Tempo médio entre o fechamento de um trade perdedor e a abertura do
+    // próximo trade — gap curto e recorrente é sinal de revenge trading
+    const gaps: number[] = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const current = sorted[i];
+      const next = sorted[i + 1];
+      if (current.pnl < 0 && current.exitDate) {
+        const gap =
+          new Date(next.date).getTime() - new Date(current.exitDate).getTime();
+        if (gap >= 0) gaps.push(gap);
+      }
+    }
+    const avgGapAfterLoss =
+      gaps.length > 0 ? gaps.reduce((s, g) => s + g, 0) / gaps.length : 0;
+
+    return {
+      curWinStreak,
+      curLossStreak,
+      maxWinStreak,
+      maxLossStreak,
+      avgTradesPerDay,
+      maxTradesDay: maxTradesDayEntry
+        ? { date: maxTradesDayEntry[0], count: maxTradesDayEntry[1] }
+        : null,
+      overtradingDays,
+      avgPnlOvertradingDay:
+        overtradingCount > 0 ? overtradingPnl / overtradingCount : null,
+      avgPnlNormalDay: normalCount > 0 ? normalPnl / normalCount : null,
+      avgGapAfterLoss,
+    };
+  }, [filteredTrades]);
+
+  // ─── RISCO: R Realizado vs R Planejado ───
+  const riskStats = useMemo(() => {
+    const withRisk = filteredTrades.filter(
+      (t) => t.stopLoss && t.entry && t.size,
+    );
+
+    let plannedSum = 0;
+    let plannedCount = 0;
+    let realizedSum = 0;
+    let realizedCount = 0;
+
+    withRisk.forEach((t) => {
+      const riskPerUnit = Math.abs(t.entry - (t.stopLoss as number));
+      if (riskPerUnit <= 0) return;
+      const riskAmount = riskPerUnit * (t.size || 1);
+
+      if (t.takeProfit) {
+        const rewardPerUnit = Math.abs((t.takeProfit as number) - t.entry);
+        plannedSum += rewardPerUnit / riskPerUnit;
+        plannedCount += 1;
+      }
+
+      realizedSum += t.pnl / riskAmount;
+      realizedCount += 1;
+    });
+
+    return {
+      avgPlannedR: plannedCount > 0 ? plannedSum / plannedCount : 0,
+      avgRealizedR: realizedCount > 0 ? realizedSum / realizedCount : 0,
+      sampleSize: realizedCount,
+    };
+  }, [filteredTrades]);
+
+  // ─── CONSISTÊNCIA: curva de capital acumulada e duração do drawdown ───
+  const equityStats = useMemo(() => {
+    const sorted = [...filteredTrades].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+
+    let running = 0;
+    let peak = 0;
+    let peakIndex = 0;
+    let maxDrawdownLen = 0; // em nº de trades, do pico até a recuperação
+    const curve: { index: number; date: string; equity: number }[] = [];
+
+    sorted.forEach((t, i) => {
+      running += t.pnl;
+      curve.push({
+        index: i,
+        date: t.exitDate || t.date,
+        equity: parseFloat(running.toFixed(2)),
+      });
+
+      if (running >= peak) {
+        // Novo pico: fecha o drawdown anterior, se houver
+        const drawdownLen = i - peakIndex;
+        maxDrawdownLen = Math.max(maxDrawdownLen, drawdownLen);
+        peak = running;
+        peakIndex = i;
+      }
+    });
+    // Caso ainda esteja em drawdown no último trade (ainda não recuperou)
+    const stillInDrawdown = running < peak;
+    const currentDrawdownLen = stillInDrawdown
+      ? sorted.length - 1 - peakIndex
+      : 0;
+
+    // Desvio padrão do P&L diário (volatilidade dos resultados)
+    const perDayPnl: Record<string, number> = {};
+    sorted.forEach((t) => {
+      const day = t.date.slice(0, 10);
+      perDayPnl[day] = (perDayPnl[day] ?? 0) + t.pnl;
+    });
+    const dayValues = Object.values(perDayPnl);
+    const meanDaily =
+      dayValues.length > 0
+        ? dayValues.reduce((s, v) => s + v, 0) / dayValues.length
+        : 0;
+    const variance =
+      dayValues.length > 0
+        ? dayValues.reduce((s, v) => s + (v - meanDaily) ** 2, 0) /
+          dayValues.length
+        : 0;
+    const dailyStdDev = Math.sqrt(variance);
+
+    return {
+      curve,
+      maxDrawdownLenTrades: Math.max(maxDrawdownLen, currentDrawdownLen),
+      stillInDrawdown,
+      dailyStdDev,
+    };
+  }, [filteredTrades]);
+
+  // ─── PADRÕES EMOCIONAIS: performance agrupada por `emotion` ───
+  const emotionStats = useMemo(() => {
+    const map: Record<string, { trades: number; wins: number; pnl: number }> =
+      {};
+    filteredTrades.forEach((t) => {
+      const tag = (t as any).emotion;
+      if (!tag) return;
+      if (!map[tag]) map[tag] = { trades: 0, wins: 0, pnl: 0 };
+      map[tag].trades += 1;
+      if (t.pnl > 0) map[tag].wins += 1;
+      map[tag].pnl += t.pnl;
+    });
+
+    return Object.entries(map)
+      .map(([emotion, v]) => ({
+        emotion,
+        trades: v.trades,
+        winRate: v.trades > 0 ? (v.wins / v.trades) * 100 : 0,
+        pnl: v.pnl,
+      }))
+      .sort((a, b) => a.pnl - b.pnl);
+  }, [filteredTrades]);
+
+  // ─── ERROS RECORRENTES: contagem + perda média por ocorrência ───
+  const errorTagStats = useMemo(() => {
+    const map: Record<string, { count: number; totalLoss: number }> = {};
+    filteredTrades.forEach((trade) => {
+      if (trade.pnl >= 0) return;
+      const tags = trade.errorTags || (trade as any).errortags;
+      if (!tags) return;
+      tags.forEach((tag: string) => {
+        if (!map[tag]) map[tag] = { count: 0, totalLoss: 0 };
+        map[tag].count += 1;
+        map[tag].totalLoss += Math.abs(trade.pnl);
+      });
+    });
+
+    return Object.entries(map)
+      .map(([tag, v]) => ({
+        tag,
+        count: v.count,
+        totalLoss: v.totalLoss,
+        avgLoss: v.count > 0 ? v.totalLoss / v.count : 0,
+      }))
+      .sort((a, b) => b.totalLoss - a.totalLoss);
+  }, [filteredTrades]);
+
+  // 1. Agrupamento Diário adaptado para ISO String (agora com contagem de trades)
   const dailyData = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { pnl: number; trades: number }> = {};
     filteredTrades.forEach((t: Trade) => {
       const dateOnly = t.date.slice(0, 10);
-      map[dateOnly] = (map[dateOnly] ?? 0) + t.pnl;
+      if (!map[dateOnly]) map[dateOnly] = { pnl: 0, trades: 0 };
+      map[dateOnly].pnl += t.pnl;
+      map[dateOnly].trades += 1;
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, pnl]: any) => ({
+      .map(([date, v]) => ({
         date: date.slice(5),
-        pnl: parseFloat(pnl.toFixed(2)),
+        pnl: parseFloat(v.pnl.toFixed(2)),
+        trades: v.trades,
       }));
   }, [filteredTrades]);
 
@@ -333,12 +645,23 @@ function StatsPage({
   function DailyTooltip({ active, payload }: any) {
     if (!active || !payload?.length) return null;
     const val = payload[0].value;
+    const tradeCount = payload[0].payload.trades;
+    const isOvertrading = tradeCount > OVERTRADING_DAILY_THRESHOLD;
     return (
-      <div className="bg-[#1a1d27] border border-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl">
+      <div className="bg-[#1a1d27] border border-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl space-y-1">
         <p className="text-muted-foreground mb-0.5">
           {payload[0].payload.date}
         </p>
         <span className={pnlColor(val)}>{fmtPnl(val)}</span>
+        <div
+          className={`flex items-center gap-1 ${isOvertrading ? "text-amber-400" : "text-muted-foreground"}`}
+        >
+          {isOvertrading && <AlertTriangle size={11} />}
+          <span>
+            {tradeCount} {tradeCount === 1 ? "trade" : "trades"}
+            {isOvertrading ? " · overtrading?" : ""}
+          </span>
+        </div>
       </div>
     );
   }
@@ -377,6 +700,20 @@ function StatsPage({
         </p>
         <p className="text-foreground">
           Volume: {volume} {volume === 1 ? "trade" : "trades"}
+        </p>
+        <span className={pnlColor(val)}>{fmtPnl(val)}</span>
+      </div>
+    );
+  }
+
+  function EquityCurveTooltip({ active, payload }: any) {
+    if (!active || !payload?.length) return null;
+    const val = payload[0].value;
+    const date = payload[0].payload.date;
+    return (
+      <div className="bg-[#1a1d27] border border-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl">
+        <p className="text-muted-foreground mb-0.5">
+          {date ? new Date(date).toLocaleDateString() : ""}
         </p>
         <span className={pnlColor(val)}>{fmtPnl(val)}</span>
       </div>
@@ -458,6 +795,23 @@ function StatsPage({
     1,
   );
   const maxAssetPnl = Math.max(...assetStats.map((a) => Math.abs(a.pnl)), 1);
+  const maxSetupPnl = Math.max(...setupStats.map((s) => Math.abs(s.pnl)), 1);
+  const maxEmotionPnl = Math.max(
+    ...emotionStats.map((e) => Math.abs(e.pnl)),
+    1,
+  );
+  const longSide = sideStats.find((s) => s.side === "long") ?? {
+    side: "long" as const,
+    trades: 0,
+    winRate: 0,
+    pnl: 0,
+  };
+  const shortSide = sideStats.find((s) => s.side === "short") ?? {
+    side: "short" as const,
+    trades: 0,
+    winRate: 0,
+    pnl: 0,
+  };
 
   return (
     <div className="space-y-5" id="print-stats-area">
@@ -682,6 +1036,155 @@ function StatsPage({
         </div>
       </div>
 
+      {/* ─── NOVA SEÇÃO: DISCIPLINA & RISCO DE RUÍNA ─── */}
+      <div className="bg-[#141722] border border-border/60 rounded-xl p-4 break-inside-avoid">
+        <div className="flex items-center gap-2 mb-4 px-2">
+          <Flame size={14} className="text-orange-400" />
+          <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+            Disciplina & Risco de Ruína
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="flex items-center gap-3 px-2">
+            <div
+              className={`p-2.5 rounded-lg ${
+                disciplineStats.curLossStreak >= 3
+                  ? "bg-red-500/10 text-red-400"
+                  : disciplineStats.curWinStreak >= 3
+                    ? "bg-emerald-500/10 text-emerald-400"
+                    : "bg-secondary/40 text-muted-foreground"
+              }`}
+            >
+              <Flame size={18} />
+            </div>
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                Sequência Atual
+              </p>
+              <p
+                className={`text-base font-semibold font-mono mt-0.5 ${
+                  disciplineStats.curLossStreak > 0
+                    ? "text-red-400"
+                    : disciplineStats.curWinStreak > 0
+                      ? "text-emerald-400"
+                      : "text-foreground"
+                }`}
+              >
+                {disciplineStats.curLossStreak > 0
+                  ? `${disciplineStats.curLossStreak} perdas`
+                  : disciplineStats.curWinStreak > 0
+                    ? `${disciplineStats.curWinStreak} vitórias`
+                    : "—"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 px-2 border-t md:border-t-0 md:border-l border-border/40 pt-3 md:pt-0 md:pl-4">
+            <div className="p-2.5 rounded-lg bg-red-500/10 text-red-400">
+              <AlertTriangle size={18} />
+            </div>
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                Maior Sequência de Perdas
+              </p>
+              <p className="text-base font-semibold font-mono text-red-400 mt-0.5">
+                {disciplineStats.maxLossStreak}{" "}
+                {disciplineStats.maxLossStreak === 1 ? "perda" : "perdas"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 px-2 border-t md:border-t-0 md:border-l border-border/40 pt-3 md:pt-0 md:pl-4">
+            <div className="p-2.5 rounded-lg bg-violet-500/10 text-violet-400">
+              <Target size={18} />
+            </div>
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                R Realizado / Planejado
+              </p>
+              <p className="text-base font-semibold font-mono mt-0.5">
+                {riskStats.sampleSize > 0 ? (
+                  <>
+                    <span
+                      className={
+                        riskStats.avgRealizedR >= 0
+                          ? "text-emerald-400"
+                          : "text-red-400"
+                      }
+                    >
+                      {riskStats.avgRealizedR.toFixed(2)}R
+                    </span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {" "}
+                      / {riskStats.avgPlannedR.toFixed(2)}R
+                    </span>
+                  </>
+                ) : (
+                  "—"
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 px-2 border-t md:border-t-0 md:border-l border-border/40 pt-3 md:pt-0 md:pl-4">
+            <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-400">
+              <Repeat size={18} />
+            </div>
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                Gap Médio Pós-Perda
+              </p>
+              <p className="text-base font-semibold font-mono text-amber-400 mt-0.5">
+                {disciplineStats.avgGapAfterLoss > 0
+                  ? fmtDuration(disciplineStats.avgGapAfterLoss)
+                  : "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-border/40 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-2 text-[11px] font-mono text-muted-foreground">
+          <span>
+            Média:{" "}
+            <span className="text-foreground">
+              {disciplineStats.avgTradesPerDay.toFixed(1)} trades/dia
+            </span>
+          </span>
+          {disciplineStats.maxTradesDay && (
+            <span>
+              Pico:{" "}
+              <span className="text-foreground">
+                {disciplineStats.maxTradesDay.count} trades
+              </span>{" "}
+              em {disciplineStats.maxTradesDay.date}
+            </span>
+          )}
+          {disciplineStats.overtradingDays > 0 && (
+            <span className="flex items-center gap-1 text-amber-400">
+              <AlertTriangle size={12} />
+              {disciplineStats.overtradingDays}{" "}
+              {disciplineStats.overtradingDays === 1 ? "dia" : "dias"} acima de{" "}
+              {OVERTRADING_DAILY_THRESHOLD} trades/dia
+            </span>
+          )}
+          {disciplineStats.avgPnlOvertradingDay !== null &&
+            disciplineStats.avgPnlNormalDay !== null && (
+              <span>
+                P&L médio nesses dias:{" "}
+                <span
+                  className={pnlColor(disciplineStats.avgPnlOvertradingDay)}
+                >
+                  {fmtPnl(disciplineStats.avgPnlOvertradingDay)}
+                </span>{" "}
+                vs dias normais:{" "}
+                <span className={pnlColor(disciplineStats.avgPnlNormalDay)}>
+                  {fmtPnl(disciplineStats.avgPnlNormalDay)}
+                </span>
+              </span>
+            )}
+        </div>
+      </div>
+
       {/* Linha 1 de Gráficos: Histórico Diário */}
       <div className="bg-card border border-border rounded-xl p-5 break-inside-avoid">
         <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground mb-4">
@@ -722,6 +1225,81 @@ function StatsPage({
             </BarChart>
           </ResponsiveContainer>
         )}
+      </div>
+
+      {/* Curva de Capital Acumulada — consistência e duração do drawdown */}
+      <div className="bg-card border border-border rounded-xl p-5 break-inside-avoid">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
+            Equity Curve (Capital Acumulado)
+          </p>
+          {equityStats.stillInDrawdown &&
+            equityStats.maxDrawdownLenTrades > 0 && (
+              <span className="text-[10px] font-mono text-amber-400 flex items-center gap-1">
+                <Activity size={11} />
+                {equityStats.maxDrawdownLenTrades} trades em drawdown
+              </span>
+            )}
+        </div>
+        {equityStats.curve.length < 2 ? (
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+            Not enough data yet
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart
+              data={equityStats.curve}
+              margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+            >
+              <defs>
+                <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor={
+                      equityStats.curve[equityStats.curve.length - 1].equity >=
+                      0
+                        ? "#34d399"
+                        : "#f87171"
+                    }
+                    stopOpacity={0.35}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor={
+                      equityStats.curve[equityStats.curve.length - 1].equity >=
+                      0
+                        ? "#34d399"
+                        : "#f87171"
+                    }
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="index" hide />
+              <YAxis hide domain={["auto", "auto"]} />
+              <Tooltip content={(props) => <EquityCurveTooltip {...props} />} />
+              <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
+              <Area
+                type="monotone"
+                dataKey="equity"
+                stroke={
+                  equityStats.curve[equityStats.curve.length - 1].equity >= 0
+                    ? "#34d399"
+                    : "#f87171"
+                }
+                strokeWidth={2}
+                fill="url(#equityGradient)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+        <p className="text-[10px] font-mono text-muted-foreground mt-3">
+          Desvio padrão do P&L diário:{" "}
+          <span className="text-foreground">
+            {fmtPnl(equityStats.dailyStdDev)}
+          </span>{" "}
+          — quanto menor, mais consistentes os seus resultados dia a dia.
+        </p>
       </div>
 
       {/* Linha 2 de Gráficos: Dia da Semana e Horários (Enriquecidos com dados de tempo no Tooltip) */}
@@ -843,7 +1421,7 @@ function StatsPage({
                       <span className="flex items-center gap-1 text-sky-400 bg-sky-500/5 px-1.5 py-0.5 rounded">
                         <Clock size={11} />{" "}
                         {fmtDuration(a.avgDuration) === "—"
-                          ? "Open"
+                          ? "Live"
                           : fmtDuration(a.avgDuration) + " avg"}{" "}
                       </span>
                     </div>
@@ -868,12 +1446,97 @@ function StatsPage({
         )}
       </div>
 
+      {/* Performance por Emoção — revela padrões comportamentais (campo `emotion`) */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden break-inside-avoid">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
+            Performance by Emotion
+          </p>
+          <span className="text-[10px] font-mono text-muted-foreground">
+            Costliest first
+          </span>
+        </div>
+        {emotionStats.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-10">
+            No emotion data yet
+          </p>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {emotionStats.map((e) => (
+              <div
+                key={e.emotion}
+                className="px-5 py-3.5 hover:bg-secondary/20 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-semibold text-foreground w-28 truncate">
+                      {e.emotion}
+                    </span>
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
+                      <span>
+                        {e.trades} {e.trades === 1 ? "trade" : "trades"}
+                      </span>
+                      <span>·</span>
+                      <span
+                        className={
+                          e.winRate >= 50
+                            ? "text-emerald-400"
+                            : "text-amber-400"
+                        }
+                      >
+                        {e.winRate.toFixed(0)}% WR
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    className={`font-mono text-sm font-bold ${pnlColor(e.pnl)}`}
+                  >
+                    {fmtPnl(e.pnl)}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${e.pnl >= 0 ? "bg-emerald-400/70" : "bg-red-400/70"}`}
+                    style={{
+                      width: `${(Math.abs(e.pnl) / maxEmotionPnl) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Gráfico de Erros */}
       <div className="bg-card border border-border rounded-xl p-5 break-inside-avoid">
         <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground mb-4">
           Loss Accumulated by Error Tag
         </p>
         <ErrorPerformance tradesList={filteredTrades} />
+        {errorTagStats.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border/40 space-y-2">
+            {errorTagStats.map((e) => (
+              <div
+                key={e.tag}
+                className="flex items-center justify-between text-[11px] font-mono"
+              >
+                <span className="text-muted-foreground truncate max-w-[45%]">
+                  {e.tag}
+                </span>
+                <div className="flex items-center gap-3 text-right shrink-0">
+                  <span className="text-muted-foreground">{e.count}x</span>
+                  <span className="text-amber-400/80">
+                    -${e.avgLoss.toFixed(2)} méd.
+                  </span>
+                  <span className="text-red-400 font-semibold w-20 text-right">
+                    -${e.totalLoss.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabela de Estratégias */}
@@ -920,7 +1583,51 @@ function StatsPage({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 break-inside-avoid">
+      {/* Tabela de Setups — granularidade abaixo da Strategy */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden break-inside-avoid">
+        <div className="px-5 py-4 border-b border-border">
+          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
+            By Setup
+          </p>
+        </div>
+        {setupStats.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-10">
+            No data yet
+          </p>
+        ) : (
+          setupStats.map((s) => (
+            <div
+              key={s.name}
+              className="px-5 py-4 border-b border-border last:border-0"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium">{s.name}</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {s.trades} {s.trades === 1 ? "trade" : "trades"} ·{" "}
+                    {s.winRate.toFixed(0)}% WR
+                  </span>
+                </div>
+                <span
+                  className={`font-mono text-sm font-semibold ${pnlColor(s.pnl)}`}
+                >
+                  {fmtPnl(s.pnl)}
+                </span>
+              </div>
+              <div className="h-1 rounded-full bg-secondary overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${s.pnl >= 0 ? "bg-emerald-400/60" : "bg-red-400/60"}`}
+                  style={{
+                    width: `${(Math.abs(s.pnl) / maxSetupPnl) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 break-inside-avoid">
         <StatCard
           label="Best Trade"
           value={fmtPnl(localStats.bestTrade)}
@@ -930,6 +1637,18 @@ function StatsPage({
           label="Worst Trade"
           value={fmtPnl(localStats.worstTrade)}
           tone="red"
+        />
+        <StatCard
+          label="Long P&L"
+          value={fmtPnl(longSide.pnl)}
+          sub={`${longSide.trades} trades · ${longSide.winRate.toFixed(0)}% WR`}
+          tone={longSide.pnl >= 0 ? "green" : "red"}
+        />
+        <StatCard
+          label="Short P&L"
+          value={fmtPnl(shortSide.pnl)}
+          sub={`${shortSide.trades} trades · ${shortSide.winRate.toFixed(0)}% WR`}
+          tone={shortSide.pnl >= 0 ? "green" : "red"}
         />
       </div>
     </div>

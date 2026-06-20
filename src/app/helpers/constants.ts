@@ -104,7 +104,7 @@ export const DEFAULT_STRATEGIES: Strategy[] = [
 export const DEFAULT_SETUPS: Setup[] = [
   {
     id: "mqji7xr2q415enqfs01",
-    name: "1,2,3 de Compra (10m)",
+    name: "1,2,3 de Compra",
     description:
       "Padrão de fundo formado por 3 candles consecutivos onde o candle 2 possui a menor mínima, e a entrada ocorre no rompimento da máxima do candle 3, validado por suporte no Ichimoku.",
     rules: [
@@ -119,7 +119,7 @@ export const DEFAULT_SETUPS: Setup[] = [
   },
   {
     id: "mqji7xr2q415enqfs02",
-    name: "1,2,3 de Venda (10m)",
+    name: "1,2,3 de Venda",
     description:
       "Padrão de topo formado por 3 candles consecutivos onde o candle 2 possui a maior máxima, e a entrada ocorre no rompimento da mínima do candle 3, validado por resistência no Ichimoku.",
     rules: [
@@ -134,7 +134,7 @@ export const DEFAULT_SETUPS: Setup[] = [
   },
   {
     id: "mqji7xr2q415enqfs03",
-    name: "Preço de Fechamento de Reversão - Compra (10m)",
+    name: "Preço de Fechamento de Reversão - Compra",
     description:
       "Candle de sinal que faz uma mínima menor que as duas anteriores, mas fecha com corpo positivo e acima do fechamento do candle anterior, indicando exaustão da venda em zona de suporte.",
     rules: [
@@ -150,7 +150,7 @@ export const DEFAULT_SETUPS: Setup[] = [
   },
   {
     id: "mqji7xr2q415enqfs04",
-    name: "Preço de Fechamento de Reversão - Venda (10m)",
+    name: "Preço de Fechamento de Reversão - Venda",
     description:
       "Candle de sinal que faz uma máxima maior que as duas anteriores, mas fecha com corpo negativo e abaixo do fechamento do candle anterior, indicando exaustão da compra em zona de resistência.",
     rules: [
@@ -166,7 +166,7 @@ export const DEFAULT_SETUPS: Setup[] = [
   },
   {
     id: "mqji7xr2q415enqfs05",
-    name: "Inside Bar (10m)",
+    name: "Inside Bar",
     description:
       "Padrão de contração de volatilidade onde o candle atual (barra interna) está completamente contido dentro da máxima e mínima do candle anterior (barra mãe), operado a favor do viés do Ichimoku.",
     rules: [
@@ -181,7 +181,7 @@ export const DEFAULT_SETUPS: Setup[] = [
   },
   {
     id: "mqji7xr2q415enqfs06",
-    name: "2 Bars Reversal (10m)",
+    name: "2 Bars Reversal",
     description:
       "Padrão de forte rejeição composto por dois candles de tamanhos semelhantes e sentidos opostos, mostrando uma virada abrupta do mercado em zonas do Ichimoku.",
     rules: [
@@ -196,7 +196,7 @@ export const DEFAULT_SETUPS: Setup[] = [
   },
 ];
 
-export const DEFAULT_ACCOUNTS: Account[] = [{ id: uid(), name: "Padrão" }];
+export const DEFAULT_ACCOUNTS: Account[] = [{ id: uid(), name: "Default" }];
 
 export const DEFAULT_CONFIGS: AppConfigs = {
   days: DAYS,

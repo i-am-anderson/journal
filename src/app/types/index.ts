@@ -155,6 +155,7 @@ export type StatsPageProps = {
   trades: Trade[];
   days: string[];
   strategies: Strategy[];
+  setups: Setup[];
 };
 
 export type SetupsPageProps = {

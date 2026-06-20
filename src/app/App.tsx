@@ -393,7 +393,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             {/* Coluna 1: Logo */}
             <div className="w-10 h-10 rounded-lg bg-emerald-400/15 flex items-center justify-center shrink-0">
-              <img src="logo.png" alt="DearMarket Logo" className="rounded-lg" />
+              <img src="logo.png" alt="DearMarket Logo" title="DearMarket" className="rounded-lg" />
             </div>
 
             {/* Coluna 2: Nome + Slogan */}
@@ -605,6 +605,7 @@ export default function App() {
               trades={accountTrades}
               days={days}
               strategies={strategies}
+              setups={setups}
             />
           )}
           {view === "setups" && (
