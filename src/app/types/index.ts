@@ -147,6 +147,7 @@ export type DashboardPageProps = {
   strategies: Strategy[];
   onViewAll: () => void;
   days: string[];
+  setView: Setter<View>;
 };
 
 export type StatsPageProps = {
@@ -282,4 +283,39 @@ export type NavItemsProps = {
   id: View;
   label: string;
   icon: React.JSX.Element;
+};
+
+export type StrategyCardProps = {
+  strategy: Strategy;
+  tradeCount: number;
+  winRate: number;
+  pnl: number;
+  onEdit: Setter<Strategy>;
+  onDelete: Setter<string>;
+};
+
+export type DefaultPlanProps = {
+  name: string;
+  startDate: string;
+  market: string;
+  timeframe: string;
+  time: string;
+  metaGain: string;
+  dailyStop: string;
+  totalCapital: string;
+  operationRisk: string;
+  maxLossPerTrade: string;
+  riskReward: string;
+  context: string;
+  setup: string;
+  volume: string;
+  entryPoint: string;
+  stopLoss: string;
+  takeProfit: string;
+  breakEven: string;
+};
+
+export type TradingPlanPageProps = {
+  tradingPlan: DefaultPlanProps;
+  setTradingPlan: React.Dispatch<React.SetStateAction<DefaultPlanProps>>;
 };

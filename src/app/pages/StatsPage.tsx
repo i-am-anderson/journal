@@ -28,12 +28,9 @@ import { fmtPnl, pnlColor, uid } from "../helpers/utils";
 
 import { StatsPageProps, Trade } from "../types";
 import useAdvancedStats from "../hooks/useAdvancedStats";
+import { OVERTRADING_DAILY_THRESHOLD } from "../helpers/constants";
 
 const COLORS = ["#60a5fa", "#34d399", "#fbbf24", "#fb923c", "#f87171"];
-
-// Limite de trades/dia a partir do qual consideramos "possível overtrading".
-// Ajuste esse número para o que fizer sentido para o seu estilo operacional.
-const OVERTRADING_DAILY_THRESHOLD = 5;
 
 /* ══════════════════════════════════════════════════════════════════════
     HELPERS FOR DURATION FORMATTING
@@ -635,6 +632,68 @@ function StatsPage({
     }));
   }, [filteredTrades]);
 
+  // 4. Agrupamento por Mês do Ano (Jan a Dez) — cíclico, soma todos os anos
+  // (mesma lógica do weekdayData, mas por mês-do-ano em vez de dia-da-semana;
+  // o range de datas no topo da página já permite recortar o período se precisar)
+  const monthData = useMemo(() => {
+    const pnlMap: Record<number, number> = {};
+    const countMap: Record<number, number> = {};
+    for (let m = 0; m < 12; m++) {
+      pnlMap[m] = 0;
+      countMap[m] = 0;
+    }
+
+    filteredTrades.forEach((t: Trade) => {
+      const month = new Date(t.date).getMonth(); // 0 (Jan) a 11 (Dez)
+      pnlMap[month] += t.pnl;
+      countMap[month] += 1;
+    });
+
+    const monthNames = [
+      "Jan",
+      "Fev",
+      "Mar",
+      "Abr",
+      "Mai",
+      "Jun",
+      "Jul",
+      "Ago",
+      "Set",
+      "Out",
+      "Nov",
+      "Dez",
+    ];
+
+    return monthNames.map((name, i) => ({
+      name,
+      pnl: parseFloat(pnlMap[i].toFixed(2)),
+      trades: countMap[i],
+    }));
+  }, [filteredTrades]);
+
+  // 5. Agrupamento por Dia do Mês (1 a 31) — cíclico, agrega todos os meses
+  // (mesma lógica do weekdayData, mas por dia-do-mês em vez de dia-da-semana)
+  const dayOfMonthData = useMemo(() => {
+    const pnlMap: Record<number, number> = {};
+    const countMap: Record<number, number> = {};
+    for (let d = 1; d <= 31; d++) {
+      pnlMap[d] = 0;
+      countMap[d] = 0;
+    }
+
+    filteredTrades.forEach((t) => {
+      const day = new Date(t.date).getDate();
+      pnlMap[day] += t.pnl;
+      countMap[day] += 1;
+    });
+
+    return Array.from({ length: 31 }, (_, i) => i + 1).map((day) => ({
+      name: String(day),
+      pnl: parseFloat(pnlMap[day].toFixed(2)),
+      trades: countMap[day],
+    }));
+  }, [filteredTrades]);
+
   const handlePrintReport = () => {
     window.print();
   };
@@ -702,6 +761,40 @@ function StatsPage({
           Volume: {volume} {volume === 1 ? "trade" : "trades"}
         </p>
         <span className={pnlColor(val)}>{fmtPnl(val)}</span>
+      </div>
+    );
+  }
+
+  function MonthlyTooltip({ active, payload }: any) {
+    if (!active || !payload?.length) return null;
+    const val = payload[0].value;
+    const tradeCount = payload[0].payload.trades;
+    return (
+      <div className="bg-[#1a1d27] border border-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl space-y-1">
+        <p className="text-muted-foreground mb-0.5">
+          {payload[0].payload.name}
+        </p>
+        <span className={pnlColor(val)}>{fmtPnl(val)}</span>
+        <p className="text-muted-foreground">
+          {tradeCount} {tradeCount === 1 ? "trade" : "trades"}
+        </p>
+      </div>
+    );
+  }
+
+  function DayOfMonthTooltip({ active, payload }: any) {
+    if (!active || !payload?.length) return null;
+    const val = payload[0].value;
+    const tradeCount = payload[0].payload.trades;
+    return (
+      <div className="bg-[#1a1d27] border border-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl space-y-1">
+        <p className="text-muted-foreground mb-0.5">
+          Dia {payload[0].payload.name}
+        </p>
+        <span className={pnlColor(val)}>{fmtPnl(val)}</span>
+        <p className="text-muted-foreground">
+          {tradeCount} {tradeCount === 1 ? "trade" : "trades"}
+        </p>
       </div>
     );
   }
@@ -1302,7 +1395,7 @@ function StatsPage({
         </p>
       </div>
 
-      {/* Linha 2 de Gráficos: Dia da Semana e Horários (Enriquecidos com dados de tempo no Tooltip) */}
+      {/* Linha 2 de Gráficos: padrões cíclicos — Dia da Semana, Mês do Ano, Dia do Mês e Horários */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 break-inside-avoid">
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
@@ -1330,6 +1423,77 @@ function StatsPage({
               <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
               <Bar dataKey="pnl" radius={[3, 3, 0, 0]} maxBarSize={32}>
                 {weekdayData.map((entry, i) => (
+                  <Cell
+                    key={`cell-${i}`}
+                    fill={entry.pnl >= 0 ? "#34d399" : "#f87171"}
+                    fillOpacity={0.75}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-5">
+          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground mb-4">
+            Month of Year P&L (todos os anos)
+          </p>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart
+              data={monthData}
+              margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+            >
+              <XAxis
+                dataKey="name"
+                tick={{
+                  fontSize: 10,
+                  fill: "#5a6480",
+                  fontFamily: "JetBrains Mono, monospace",
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide domain={["auto", "auto"]} />
+              <Tooltip content={(props) => <MonthlyTooltip {...props} />} />
+              <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
+              <Bar dataKey="pnl" radius={[3, 3, 0, 0]} maxBarSize={28}>
+                {monthData.map((entry, i) => (
+                  <Cell
+                    key={`cell-${i}`}
+                    fill={entry.pnl >= 0 ? "#34d399" : "#f87171"}
+                    fillOpacity={0.75}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-5">
+          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground mb-4">
+            Day of Month P&L (1–31)
+          </p>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart
+              data={dayOfMonthData}
+              margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+            >
+              <XAxis
+                dataKey="name"
+                interval={2}
+                tick={{
+                  fontSize: 8,
+                  fill: "#5a6480",
+                  fontFamily: "JetBrains Mono, monospace",
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide domain={["auto", "auto"]} />
+              <Tooltip content={(props) => <DayOfMonthTooltip {...props} />} />
+              <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
+              <Bar dataKey="pnl" radius={[2, 2, 0, 0]} maxBarSize={14}>
+                {dayOfMonthData.map((entry, i) => (
                   <Cell
                     key={`cell-${i}`}
                     fill={entry.pnl >= 0 ? "#34d399" : "#f87171"}

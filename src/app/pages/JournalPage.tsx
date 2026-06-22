@@ -10,7 +10,7 @@ import {
 import { fmtDate, fmtPnl, fmtTime, pnlColor } from "../helpers/utils";
 
 import { JournalPageProps, TradesView } from "../types";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 /* ══════════════════════════════════════════════════════════════════════
   PAGE — Journal
@@ -42,6 +42,46 @@ function JournalPage({
 }: JournalPageProps) {
   const setupMap = Object.fromEntries(setups.map((s) => [s.id, s]));
   const strategyMap = Object.fromEntries(strategies.map((s) => [s.id, s]));
+
+  // ─── FILTROS LOCAIS: Emoção, Erro e Aberto/Fechado ───
+  // Aplicados em cima do que já chega filtrado de fora (search/side/status/etc).
+  const [filterEmotion, setFilterEmotion] = useState("all");
+  const [filterErrorTag, setFilterErrorTag] = useState("all");
+  const [filterOpenStatus, setFilterOpenStatus] = useState<
+    "all" | "open" | "closed"
+  >("all");
+
+  const emotionOptions = useMemo(() => {
+    const set = new Set<string>();
+    trades.forEach((t) => {
+      const emotion = (t as any).emotion;
+      if (emotion) set.add(emotion);
+    });
+    return Array.from(set).sort();
+  }, [trades]);
+
+  const errorTagOptions = useMemo(() => {
+    const set = new Set<string>();
+    trades.forEach((t) => {
+      (t.errorTags || []).forEach((tag) => set.add(tag));
+    });
+    return Array.from(set).sort();
+  }, [trades]);
+
+  const visibleTrades = useMemo(() => {
+    return trades.filter((t) => {
+      if (filterEmotion !== "all" && (t as any).emotion !== filterEmotion)
+        return false;
+      if (
+        filterErrorTag !== "all" &&
+        !(t.errorTags || []).includes(filterErrorTag)
+      )
+        return false;
+      if (filterOpenStatus === "open" && t.exitDate) return false;
+      if (filterOpenStatus === "closed" && !t.exitDate) return false;
+      return true;
+    });
+  }, [trades, filterEmotion, filterErrorTag, filterOpenStatus]);
 
   // Função dedicada para gerar e imprimir o relatório do trade de forma limpa
   const handlePrint = (trade: any) => {
@@ -274,6 +314,10 @@ function JournalPage({
               <div class="label">Timeframe</div>
               <div class="value">${trade.timeframe || "N/A"}</div>
             </div>
+            <div class="grid-item">
+              <div class="label">Emotion</div>
+              <div class="value">${trade.emotion || "N/A"}</div>
+            </div>
           </div>
 
           ${
@@ -282,6 +326,24 @@ function JournalPage({
             <div class="section">
               <h3>Notes / Log</h3>
               <div class="notes-content">${trade.notes}</div>
+            </div>
+          `
+              : ""
+          }
+
+          ${
+            trade.errorTags && trade.errorTags.length > 0
+              ? `
+            <div class="section">
+              <h3>Error Tags</h3>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                ${trade.errorTags
+                  .map(
+                    (tag: string) =>
+                      `<span class="badge" style="color: #ef4444; border-color: #fca5a5; background-color: #fef2f2;">${tag}</span>`,
+                  )
+                  .join("")}
+              </div>
             </div>
           `
               : ""
@@ -347,6 +409,19 @@ function JournalPage({
           ))}
         </div>
 
+        {/* Filtro: Aberto / Fechado (local, baseado em exitDate) */}
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          {(["all", "open", "closed"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilterOpenStatus(s)}
+              className={`px-3 py-2 text-xs font-mono capitalize transition-colors ${filterOpenStatus === s ? "bg-amber-400/15 text-amber-400" : "bg-card text-muted-foreground hover:text-foreground"}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
         <select
           value={filterStrategy}
           onChange={(e) => setFilterStrategy(e.target.value)}
@@ -372,6 +447,38 @@ function JournalPage({
             </option>
           ))}
         </select>
+
+        {/* Filtro: Emoção — só aparece se houver trades com `emotion` registrado */}
+        {emotionOptions.length > 0 && (
+          <select
+            value={filterEmotion}
+            onChange={(e) => setFilterEmotion(e.target.value)}
+            className="px-3 py-2 rounded-lg bg-card border border-border text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40"
+          >
+            <option value="all">All Emotions</option>
+            {emotionOptions.map((e) => (
+              <option key={e} value={e}>
+                {e}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Filtro: Error Tag — só aparece se houver trades com erros taggeados */}
+        {errorTagOptions.length > 0 && (
+          <select
+            value={filterErrorTag}
+            onChange={(e) => setFilterErrorTag(e.target.value)}
+            className="px-3 py-2 rounded-lg bg-card border border-border text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40"
+          >
+            <option value="all">All Error Tags</option>
+            {errorTagOptions.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
+        )}
 
         <select
           value={filterDay}
@@ -403,18 +510,19 @@ function JournalPage({
         </div>
 
         <span className="text-xs font-mono text-muted-foreground ml-2">
-          {trades.length} {trades.length === 1 ? "trade" : "trades"}
+          {visibleTrades.length}{" "}
+          {visibleTrades.length === 1 ? "trade" : "trades"}
         </span>
       </div>
 
-      {trades.length === 0 && (
+      {visibleTrades.length === 0 && (
         <div className="bg-card border border-border rounded-xl py-16 text-center text-sm text-muted-foreground">
           No trades match your filters
         </div>
       )}
 
       {/* ─── CONDICIONAL DE RENDERIZAÇÃO BASEADA NO DISPLAYMODE ─── */}
-      {trades.length > 0 && displayMode === "compact" ? (
+      {visibleTrades.length > 0 && displayMode === "compact" ? (
         /* MODO COMPACT: Tabela clássica em lista */
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="flex items-center gap-4 px-5 py-3 border-b border-border">
@@ -445,7 +553,7 @@ function JournalPage({
             <span className="w-8 shrink-0"></span>
           </div>
 
-          {trades.map((trade) => {
+          {visibleTrades.map((trade) => {
             const setup = setupMap[trade.setupId];
             const strategy = strategyMap[trade.strategyId];
             return (
@@ -632,6 +740,14 @@ function JournalPage({
                           {trade.timeframe || "N/A"}
                         </p>
                       </div>
+                      <div>
+                        <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1">
+                          Emotion
+                        </p>
+                        <p className="text-sm font-mono text-foreground font-semibold">
+                          {(trade as any).emotion || "N/A"}
+                        </p>
+                      </div>
 
                       {trade.stopLoss && trade.takeProfit && trade.entry && (
                         <div>
@@ -657,6 +773,24 @@ function JournalPage({
                         <p className="text-sm text-foreground/80 leading-relaxed">
                           {trade.notes}
                         </p>
+                      </div>
+                    )}
+
+                    {trade.errorTags && trade.errorTags.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground mb-1.5">
+                          Error Tags
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {trade.errorTags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-red-400/30 bg-red-400/10 text-red-300"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -718,7 +852,7 @@ function JournalPage({
       ) : (
         /* MODO PLAYBOOK: Grade de Cards Visuais focados nos Gráficos/Notas */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {trades.map((trade) => {
+          {visibleTrades.map((trade) => {
             const setup = setupMap[trade.setupId];
             const strategy = strategyMap[trade.strategyId];
             return (
@@ -860,6 +994,26 @@ function JournalPage({
                         {strategy?.name || trade.strategyId || "No Strategy"}
                       </span>
                     </div>
+
+                    {/* Emoção registrada + Tags de Erro */}
+                    {((trade as any).emotion ||
+                      (trade.errorTags && trade.errorTags.length > 0)) && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {(trade as any).emotion && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-border bg-secondary/20 text-muted-foreground">
+                            {(trade as any).emotion}
+                          </span>
+                        )}
+                        {trade.errorTags?.map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-red-400/30 bg-red-400/10 text-red-300"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Notas Rápidas */}
                     {trade.notes && (

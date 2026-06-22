@@ -1,8 +1,10 @@
 import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Lock, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Target, Moon } from "lucide-react";
 import { DailyProcess, ProcessGoalsPageProps } from "../types";
 import DailyProcessModal from "../components/DailyProcessModal";
 import MonthlyProcessProgress from "../components/MonthlyProcessProgress";
+import StatCard from "../components/StatCard";
+import { fmtPnl } from "../helpers/utils";
 
 /* ══════════════════════════════════════════════════════════════════════
   PAGE — Process Goals
@@ -67,6 +69,64 @@ export default function ProcessGoalsPage({
     return dayTrades.reduce((acc, t) => acc + t.pnl, 0);
   };
 
+  // Data de "hoje" em componentes locais — consistente com a geração do
+  // calendário acima (evita desalinhar ~3h à noite em fusos como o do Brasil,
+  // que aconteceria se usássemos toISOString() aqui).
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  // ─── SEQUÊNCIA DE DISCIPLINA: dias consecutivos com 100% do checklist ───
+  const disciplineStreak = useMemo(() => {
+    let streak = 0;
+    const cursor = new Date();
+    for (let i = 0; i < 365; i++) {
+      const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+      const dp = getDayData(dateStr);
+      if (i === 0 && !dp) {
+        // Hoje ainda não foi registrado — não conta, mas também não quebra
+        // a sequência (o dia ainda não terminou).
+        cursor.setDate(cursor.getDate() - 1);
+        continue;
+      }
+      const score = getDisciplineScore(dp);
+      if (score === 100) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }, [dailyProcess, processGoals]);
+
+  // ─── CORRELAÇÃO: P&L médio em dias disciplinados vs indisciplinados ───
+  const disciplineVsPnl = useMemo(() => {
+    const rows = dailyProcess
+      .map((dp) => ({
+        score: getDisciplineScore(dp),
+        pnl: getDayPnl(dp.date),
+      }))
+      .filter((r) => r.score !== null && r.pnl !== null) as {
+      score: number;
+      pnl: number;
+    }[];
+
+    const high = rows.filter((r) => r.score >= 80);
+    const low = rows.filter((r) => r.score < 50);
+
+    const avg = (list: typeof rows) =>
+      list.length > 0
+        ? list.reduce((s, r) => s + r.pnl, 0) / list.length
+        : null;
+
+    return {
+      avgHigh: avg(high),
+      avgLow: avg(low),
+      highCount: high.length,
+      lowCount: low.length,
+    };
+  }, [dailyProcess, trades, processGoals]);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* 👇 BARRA DE PROGRESSO INTEGRADA (Conectada ao mês do calendário) */}
@@ -112,6 +172,52 @@ export default function ProcessGoalsPage({
         </div>
       </div>
 
+      {/* Insights de Disciplina */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          label="Sequência de Disciplina"
+          value={
+            disciplineStreak > 0
+              ? `${disciplineStreak} ${disciplineStreak === 1 ? "dia" : "dias"}`
+              : "—"
+          }
+          sub="dias seguidos com 100% do checklist"
+          tone={disciplineStreak > 0 ? "green" : undefined}
+        />
+        <StatCard
+          label="P&L · Dias Disciplinados"
+          value={
+            disciplineVsPnl.avgHigh !== null
+              ? fmtPnl(disciplineVsPnl.avgHigh)
+              : "—"
+          }
+          sub={`score ≥ 80% · ${disciplineVsPnl.highCount} ${disciplineVsPnl.highCount === 1 ? "dia" : "dias"}`}
+          tone={
+            disciplineVsPnl.avgHigh !== null
+              ? disciplineVsPnl.avgHigh >= 0
+                ? "green"
+                : "red"
+              : undefined
+          }
+        />
+        <StatCard
+          label="P&L · Dias Indisciplinados"
+          value={
+            disciplineVsPnl.avgLow !== null
+              ? fmtPnl(disciplineVsPnl.avgLow)
+              : "—"
+          }
+          sub={`score < 50% · ${disciplineVsPnl.lowCount} ${disciplineVsPnl.lowCount === 1 ? "dia" : "dias"}`}
+          tone={
+            disciplineVsPnl.avgLow !== null
+              ? disciplineVsPnl.avgLow >= 0
+                ? "green"
+                : "red"
+              : undefined
+          }
+        />
+      </div>
+
       {/* Grid do Calendário */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="grid grid-cols-7 border-b border-border bg-secondary/30">
@@ -139,6 +245,8 @@ export default function ProcessGoalsPage({
             const score = getDisciplineScore(dp);
             const pnl = getDayPnl(dateStr);
             const dayNum = parseInt(dateStr.split("-")[2]);
+            const isToday = dateStr === todayStr;
+            const isFuture = dateStr > todayStr;
 
             // Define cor da borda baseado na pontuação
             let ringColor = "border-transparent";
@@ -152,13 +260,21 @@ export default function ProcessGoalsPage({
               <div
                 key={dateStr}
                 onClick={() => {
-                  if (pnl) setSelectedDate(dateStr);
-                  else alert("⚠️ Você não possui nenhum trade nessa data!");
+                  // Qualquer dia pode ser registrado, mesmo sem trades —
+                  // não operar também é uma decisão de disciplina.
+                  if (isFuture) return;
+                  setSelectedDate(dateStr);
                 }}
-                className={`border-r border-b border-border/50 p-2 cursor-pointer hover:bg-secondary/40 transition-colors flex flex-col justify-between border-l-4 ${ringColor}`}
+                className={`border-r border-b border-border/50 p-2 transition-colors flex flex-col justify-between border-l-4 ${ringColor} ${
+                  isFuture
+                    ? "opacity-40 cursor-not-allowed"
+                    : "cursor-pointer hover:bg-secondary/40"
+                } ${isToday ? "ring-1 ring-inset ring-sky-400/50" : ""}`}
               >
                 <div className="flex justify-between items-start">
-                  <span className="text-sm font-mono font-medium text-muted-foreground">
+                  <span
+                    className={`text-sm font-mono font-medium ${isToday ? "text-sky-400" : "text-muted-foreground"}`}
+                  >
                     {dayNum}
                   </span>
                   {dp?.closed && (
@@ -175,6 +291,12 @@ export default function ProcessGoalsPage({
                       {pnl.toFixed(2)}
                     </div>
                   )}
+                  {pnl === null && dp && (
+                    <div className="flex items-center gap-1 text-[9px] font-mono text-sky-400/80">
+                      <Moon size={9} />
+                      Sem trades
+                    </div>
+                  )}
                   {score !== null && (
                     <div className="text-[10px] text-muted-foreground font-mono">
                       Score: {score.toFixed(0)}%
@@ -185,6 +307,30 @@ export default function ProcessGoalsPage({
             );
           })}
         </div>
+      </div>
+
+      {/* Legenda */}
+      <div className="flex flex-wrap items-center gap-4 text-[10px] font-mono text-muted-foreground px-1">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm border-l-4 border-emerald-500/50 bg-secondary/30" />
+          100% do checklist
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm border-l-4 border-amber-500/50 bg-secondary/30" />
+          50–99%
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm border-l-4 border-red-500/50 bg-secondary/30" />
+          Abaixo de 50%
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Moon size={11} className="text-sky-400/80" />
+          Dia sem trades, registrado
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm ring-1 ring-inset ring-sky-400/50 bg-secondary/30" />
+          Hoje
+        </span>
       </div>
 
       {selectedDate && (

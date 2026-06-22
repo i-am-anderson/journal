@@ -42,7 +42,9 @@ import {
   View,
   NavItemsProps,
   isView,
+  DefaultPlanProps,
 } from "./types";
+import { DEFAULT_TRADING_PLAN } from "./helpers/constants";
 
 /* ══════════════════════════════════════════════════════════════════════
   ROOT APP
@@ -94,6 +96,8 @@ export default function App() {
   const [emotions, setEmotions] = useState<string[]>([]);
 
   const [displayMode, setDisplayMode] = useState<TradesView>("playbook");
+  const [tradingPlan, setTradingPlan] =
+    useState<DefaultPlanProps>(DEFAULT_TRADING_PLAN);
 
   /* ══════════════════════════════════════════════════════════════════════
     1. CARREGAMENTO INICIAL (MOCK DA API)
@@ -109,6 +113,7 @@ export default function App() {
           loadedTrades,
           loadedDailyProcess,
           loadedProcessGoals,
+          loadedTradingPlan,
         ] = await Promise.all([
           storageService.getConfigs(),
           storageService.getAccounts(),
@@ -117,6 +122,7 @@ export default function App() {
           storageService.getTrades(),
           storageService.getDailyProcess(),
           storageService.getProcessGoals(),
+          storageService.getTradingPlan(),
         ]);
 
         // Populando as configs (Garantindo um fallback para Arrays vazios)
@@ -139,6 +145,7 @@ export default function App() {
         setTrades(loadedTrades || []);
         setDailyProcess(loadedDailyProcess || []);
         setProcessGoals(loadedProcessGoals || []);
+        setTradingPlan(loadedTradingPlan || DEFAULT_TRADING_PLAN);
       } catch (error) {
         console.error("Erro ao carregar dados", error);
       } finally {
@@ -176,6 +183,8 @@ export default function App() {
     storageService.saveDailyProcess(dailyProcess);
 
     storageService.saveProcessGoals(processGoals);
+
+    storageService.saveTradingPlan(tradingPlan);
   }, [
     days,
     timeframes,
@@ -191,6 +200,7 @@ export default function App() {
     displayMode,
     processGoals,
     dailyProcess,
+    tradingPlan,
   ]);
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -392,13 +402,18 @@ export default function App() {
         <div className="px-5 py-5 border-b border-border">
           <div className="flex items-center gap-3">
             {/* Coluna 1: Logo */}
-            <div className="w-10 h-10 rounded-lg bg-emerald-400/15 flex items-center justify-center shrink-0">
-              <img src="logo.png" alt="DearMarket Logo" title="DearMarket" className="rounded-lg" />
+            <div className="w-12 h-12 rounded-lg bg-emerald-400/15 flex items-center justify-center shrink-0">
+              <img
+                src="logo.png"
+                alt="DearMarket Logo"
+                title="DearMarket"
+                className="rounded-lg"
+              />
             </div>
 
             {/* Coluna 2: Nome + Slogan */}
             <div className="flex flex-col">
-              <span className="font-mono text-sm font-bold tracking-tight">
+              <span className="font-mono text-xl font-bold tracking-tight">
                 DearMarket
               </span>
 
@@ -462,12 +477,12 @@ export default function App() {
               {item.icon}
               {item.label}
               {item.id === "setups" && (
-                <span className="ml-auto text-[10px] font-mono bg-emerald-400 rounded-full px-1.5 py-0.5 text-background">
+                <span className="ml-auto text-[9px] font-mono bg-emerald-400 rounded-full px-1.5 py-0.5 text-background">
                   {setups.length}
                 </span>
               )}
               {item.id === "strategies" && (
-                <span className="ml-auto text-[10px] font-mono bg-emerald-400 rounded-full px-1.5 py-0.5 text-background">
+                <span className="ml-auto text-[9px] font-mono bg-emerald-400 rounded-full px-1.5 py-0.5 text-background">
                   {strategies.length}
                 </span>
               )}
@@ -561,6 +576,7 @@ export default function App() {
               strategies={strategies}
               onViewAll={() => setView("journal")}
               days={days}
+              setView={setView}
             />
           )}
           {view === "journal" && (
@@ -634,7 +650,7 @@ export default function App() {
               }}
             />
           )}
-          {view === "trading-plan" && <TradingPlanPage />}
+          {view === "trading-plan" && <TradingPlanPage tradingPlan={tradingPlan} setTradingPlan={setTradingPlan} />}
           {view === "configs" && (
             <ConfigsPage
               days={days}

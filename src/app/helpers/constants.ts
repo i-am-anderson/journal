@@ -218,6 +218,31 @@ export const DEFAULT_GOALS = [
   "Execução Pró-Ativa", // Só boletar se o padrão de candle (ex: PFR ou Inside Bar) estiver perfeitamente desenhado e fechado; não antecipar violações.
 ];
 
+export const DEFAULT_TRADING_PLAN = {
+  name: "",
+  startDate: "16/06/2026",
+  market: "Mini Índice / Mini Dólar / Cripto",
+  timeframe: "5 min / 15 min",
+  time: "09:00 às 12:00",
+  metaGain: "R$ 500,00",
+  dailyStop: "R$ 250,00",
+  totalCapital: "R$ 10.000,00",
+  operationRisk: "1%",
+  maxLossPerTrade: "R$ 100,00",
+  riskReward: "1:2",
+  context: "Tendência macro a favor + VWAP e Médias Móveis",
+  setup: "Pivô de alta / Rejeição em região de suporte",
+  volume: "Acima da média histórica no candle de gatilho",
+  entryPoint: "Rompimento do candle gatilho com proteção na mínima",
+  stopLoss: "Abaixo da mínima do padrão estrutural",
+  takeProfit: "Duas vezes o risco projetado para cima",
+  breakEven: "Proteger no zero a zero ao atingir 1R de ganho",
+};
+
+// Limite de trades/dia a partir do qual consideramos "possível overtrading".
+// Ajuste esse número para o que fizer sentido para o seu estilo operacional.
+export const OVERTRADING_DAILY_THRESHOLD = 5;
+
 /* ══════════════════════════════════════════════════════════════════════
   SEED DATA (Deprecated)
 ══════════════════════════════════════════════════════════════════════ */

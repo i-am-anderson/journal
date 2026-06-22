@@ -2,6 +2,7 @@ import {
   Account,
   AppConfigs,
   DailyProcess,
+  DefaultPlanProps,
   Setup,
   Strategy,
   Trade,
@@ -12,6 +13,7 @@ import {
   DEFAULT_ACCOUNTS,
   DEFAULT_CONFIGS,
   DEFAULT_GOALS,
+  DEFAULT_TRADING_PLAN,
 } from "../helpers/constants";
 
 // Chaves que serão usadas no LocalStorage
@@ -23,6 +25,7 @@ const KEYS = {
   CONFIGS: "journal_configs",
   DAILY_PROCESS: "journal_daily_process",
   PROCESS_GOALS: "journal_process_goals",
+  TRADING_PLAN: "journal_trading_plan",
 };
 
 // Funções utilitárias internas para o LocalStorage
@@ -94,5 +97,15 @@ export const storageService = {
   saveProcessGoals: async (dailyProcess: string[]): Promise<string[]> => {
     setLocal(KEYS.PROCESS_GOALS, dailyProcess);
     return dailyProcess;
+  },
+
+  // TRADING PLAN
+  getTradingPlan: async (): Promise<DefaultPlanProps> =>
+    getLocal(KEYS.TRADING_PLAN, DEFAULT_TRADING_PLAN),
+  saveTradingPlan: async (
+    tradingPlan: DefaultPlanProps,
+  ): Promise<DefaultPlanProps> => {
+    setLocal(KEYS.TRADING_PLAN, tradingPlan);
+    return tradingPlan;
   },
 };
