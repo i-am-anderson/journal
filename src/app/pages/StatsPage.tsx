@@ -22,6 +22,7 @@ import {
   Target,
   Repeat,
   Activity,
+  Sigma,
 } from "lucide-react";
 import StatCard from "../components/StatCard";
 import { fmtPnl, pnlColor, uid } from "../helpers/utils";
@@ -31,6 +32,29 @@ import useAdvancedStats from "../hooks/useAdvancedStats";
 import { OVERTRADING_DAILY_THRESHOLD } from "../helpers/constants";
 
 const COLORS = ["#60a5fa", "#34d399", "#fbbf24", "#fb923c", "#f87171"];
+
+// Amostra mínima de trades decididos (vitória ou derrota) para o teste de
+// séries (Z-Score) ser estatisticamente confiável. Abaixo disso, qualquer
+// resultado seria ruído — preferimos não mostrar a sinalizar errado.
+const MIN_TRADES_FOR_ZSCORE = 20;
+
+// Aproximação numérica da função erro (Abramowitz & Stegun 7.1.26).
+// Usada para converter o Z-Score em probabilidade (% de confiança) sem
+// depender de nenhuma lib de estatística externa.
+function erf(x: number): number {
+  const sign = x >= 0 ? 1 : -1;
+  const ax = Math.abs(x);
+  const a1 = 0.254829592;
+  const a2 = -0.284496736;
+  const a3 = 1.421413741;
+  const a4 = -1.453152027;
+  const a5 = 1.061405429;
+  const p = 0.3275911;
+  const t = 1 / (1 + p * ax);
+  const y =
+    1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-ax * ax);
+  return sign * y;
+}
 
 /* ══════════════════════════════════════════════════════════════════════
     HELPERS FOR DURATION FORMATTING
@@ -408,6 +432,47 @@ function StatsPage({
       avgRealizedR: realizedCount > 0 ? realizedSum / realizedCount : 0,
       sampleSize: realizedCount,
     };
+  }, [filteredTrades]);
+
+  // ─── Z-SCORE: teste de séries (runs test) — mede se vitória/derrota se
+  // correlacionam entre trades consecutivos, ou se são estatisticamente
+  // independentes (resultado de processo aleatório). Baseado no teste de
+  // Wald-Wolfowitz, o mesmo método por trás do "Z-Score" citado em
+  // relatórios de trading (MT4/MT5 e afins). ───
+  const zScoreStats = useMemo(() => {
+    // Considera só trades decididos (vitória ou derrota) — breakeven não
+    // entra na sequência, pois não tem lado para "correlacionar".
+    const sorted = [...filteredTrades]
+      .filter((t) => t.status === "win" || t.status === "loss")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const N = sorted.length;
+    if (N < MIN_TRADES_FOR_ZSCORE) return null;
+
+    const W = sorted.filter((t) => t.status === "win").length;
+    const L = N - W;
+    if (W === 0 || L === 0) return null; // sem variabilidade, nada a testar
+
+    // Conta o número de sequências (runs) observadas
+    let runs = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].status !== sorted[i - 1].status) runs += 1;
+    }
+
+    const expectedRuns = (2 * W * L) / N + 1;
+    const variance = (2 * W * L * (2 * W * L - N)) / (N * N * (N - 1));
+    const stdDev = Math.sqrt(Math.max(variance, 0));
+
+    const z = stdDev > 0 ? (runs - expectedRuns) / stdDev : 0;
+    // Confiança (bicaudal) de que o desvio não é acaso — via função erro
+    const confidence = erf(Math.abs(z) / Math.SQRT2) * 100;
+
+    let interpretation: "random" | "alternating" | "streaky" = "random";
+    if (Math.abs(z) >= 1.65) {
+      interpretation = z > 0 ? "alternating" : "streaky";
+    }
+
+    return { z, confidence, interpretation, runs, expectedRuns, N, W, L };
   }, [filteredTrades]);
 
   // ─── CONSISTÊNCIA: curva de capital acumulada e duração do drawdown ───
@@ -1081,7 +1146,7 @@ function StatsPage({
       </div>
 
       {/* ─── NOVA SEÇÃO: TIME & TIMING PERFORMANCE INFO CARDS ─── */}
-      <div className="bg-[#141722] border border-border/60 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4 break-inside-avoid">
+      <div className="bg-[#13151D] border border-border/60 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4 break-inside-avoid">
         <div className="flex items-center gap-3 px-2">
           <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-400">
             <Clock size={18} />
@@ -1130,7 +1195,7 @@ function StatsPage({
       </div>
 
       {/* ─── NOVA SEÇÃO: DISCIPLINA & RISCO DE RUÍNA ─── */}
-      <div className="bg-[#141722] border border-border/60 rounded-xl p-4 break-inside-avoid">
+      <div className="bg-[#13151D] border border-border/60 rounded-xl p-4 break-inside-avoid">
         <div className="flex items-center gap-2 mb-4 px-2">
           <Flame size={14} className="text-orange-400" />
           <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
@@ -1276,6 +1341,96 @@ function StatsPage({
               </span>
             )}
         </div>
+      </div>
+
+      {/* ─── Z-SCORE: teste de séries — correlação entre trades consecutivos ─── */}
+      <div className="bg-[#141722] border border-border/60 rounded-xl p-5 break-inside-avoid">
+        <div className="flex items-center gap-2 mb-4">
+          <Sigma size={14} className="text-violet-400" />
+          <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+            Z-Score — Teste de Séries (Correlação entre Trades)
+          </p>
+        </div>
+
+        {!zScoreStats ? (
+          <p className="text-sm text-muted-foreground">
+            Amostra insuficiente — são necessários pelo menos{" "}
+            {MIN_TRADES_FOR_ZSCORE} trades decididos (vitória ou derrota) no
+            período filtrado para um teste estatisticamente confiável.
+          </p>
+        ) : (
+          <>
+            <div className="flex items-end gap-8 mb-4">
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
+                  Z-Score
+                </p>
+                <p
+                  className={`text-3xl font-bold font-mono ${
+                    zScoreStats.interpretation === "alternating"
+                      ? "text-sky-400"
+                      : zScoreStats.interpretation === "streaky"
+                        ? "text-amber-400"
+                        : "text-foreground"
+                  }`}
+                >
+                  {zScoreStats.z >= 0 ? "+" : ""}
+                  {zScoreStats.z.toFixed(2)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
+                  Confiança
+                </p>
+                <p className="text-3xl font-bold font-mono text-foreground">
+                  {zScoreStats.confidence.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+
+            <div
+              className={`rounded-lg border px-4 py-3 text-xs leading-relaxed ${
+                zScoreStats.interpretation === "random"
+                  ? "border-border bg-secondary/20 text-muted-foreground"
+                  : zScoreStats.interpretation === "alternating"
+                    ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+              }`}
+            >
+              {zScoreStats.interpretation === "random" && (
+                <>
+                  Sem correlação estatisticamente significativa. Suas vitórias e
+                  derrotas parecem se distribuir de forma aleatória e
+                  independente — dentro do que o acaso explicaria.
+                </>
+              )}
+              {zScoreStats.interpretation === "alternating" && (
+                <>
+                  Com {zScoreStats.confidence.toFixed(1)}% de confiança, uma{" "}
+                  <strong>vitória tende a ser seguida por uma derrota</strong>{" "}
+                  (e vice-versa) — padrão de alternância. Isso sugere que forçar
+                  o próximo trade logo após um ganho carrega um risco
+                  estatisticamente maior do que o normal.
+                </>
+              )}
+              {zScoreStats.interpretation === "streaky" && (
+                <>
+                  Com {zScoreStats.confidence.toFixed(1)}% de confiança, uma{" "}
+                  <strong>vitória tende a ser seguida por outra vitória</strong>{" "}
+                  (e uma derrota por outra derrota) — padrão de sequência. Pode
+                  fazer sentido reduzir o risco assim que uma derrota aparecer,
+                  para não operar dentro de uma sequência ruim em formação.
+                </>
+              )}
+            </div>
+
+            <p className="text-[10px] font-mono text-muted-foreground mt-3">
+              Base: {zScoreStats.N} trades decididos ({zScoreStats.W}W /{" "}
+              {zScoreStats.L}L) · {zScoreStats.runs} sequências observadas vs.{" "}
+              {zScoreStats.expectedRuns.toFixed(1)} esperadas ao acaso
+            </p>
+          </>
+        )}
       </div>
 
       {/* Linha 1 de Gráficos: Histórico Diário */}

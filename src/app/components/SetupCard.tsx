@@ -14,6 +14,9 @@ function SetupCard({
   onEdit,
   onDelete,
 }: SetupCardProps) {
+  const timeframes = setup?.timeframe;
+  const setupMarkets = setup?.markets;
+
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="h-1" style={{ backgroundColor: setup?.color }} />
@@ -23,13 +26,23 @@ function SetupCard({
             <h3 className="font-semibold text-sm leading-tight mb-1">
               {setup?.name}
             </h3>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border text-muted-foreground border-border">
-                {setup.timeframe}
-              </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border text-muted-foreground border-border">
-                {setup.markets}
-              </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {timeframes?.map((tf) => (
+                <span
+                  key={tf}
+                  className="text-[10px] font-mono px-1.5 py-0.5 rounded border text-muted-foreground border-border"
+                >
+                  {tf}
+                </span>
+              ))}
+              {setupMarkets.map((m) => (
+                <span
+                  key={m}
+                  className="text-[10px] font-mono px-1.5 py-0.5 rounded border text-muted-foreground border-border"
+                >
+                  {m}
+                </span>
+              ))}
             </div>
           </div>
           <div className="flex items-center gap-1">

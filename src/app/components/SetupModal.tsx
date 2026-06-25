@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { uid } from "../helpers/utils";
 import { SetupModalProps } from "../types";
+import MultiSelectCombobox from "./MultiSelectCombobox";
 
 /* ══════════════════════════════════════════════════════════════════════
   SHARED UI
@@ -17,8 +18,8 @@ function SetupModal({
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [rules, setRules] = useState(initial?.rules ?? [""]);
-  const [timeframe, setTimeframe] = useState(initial?.timeframe ?? "Daily");
-  const [markets_, setMarkets_] = useState(initial?.markets ?? "All");
+  const [timeframe, setTimeframe] = useState<string[]>(initial?.timeframe ?? []);
+  const [markets_, setMarkets_] = useState<string[]>(initial?.markets ?? []);
   const [color, setColor] = useState(initial?.color ?? colors[0]);
 
   function addRule() {
@@ -32,7 +33,7 @@ function SetupModal({
   }
 
   function submit() {
-    if (!name.trim()) return;
+    if (!name.trim() || timeframe.length === 0 || markets_.length === 0) return;
     onSave({
       id: initial?.id ?? uid(),
       name: name.trim(),
@@ -100,39 +101,26 @@ function SetupModal({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
-                Timeframe
-              </label>
-              <select
-                value={timeframe}
-                onChange={(e) => setTimeframe(e.target.value)}
-                className={`${inputCls} cursor-pointer`}
-              >
-                {timeframes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
-                Markets
-              </label>
-              <select
-                value={markets_}
-                onChange={(e) => setMarkets_(e.target.value)}
-                className={`${inputCls} cursor-pointer`}
-              >
-                {markets.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <MultiSelectCombobox
+              label="Timeframes"
+              options={timeframes}
+              selected={timeframe}
+              onChange={setTimeframe}
+              placeholder="Select timeframes..."
+            />
+            <MultiSelectCombobox
+              label="Markets"
+              options={markets}
+              selected={markets_}
+              onChange={setMarkets_}
+              placeholder="Select markets..."
+            />
           </div>
+          {(timeframe.length === 0 || markets_.length === 0) && (
+            <p className="text-[10px] text-amber-400 -mt-2">
+              Selecione ao menos 1 timeframe e 1 market.
+            </p>
+          )}
 
           <div>
             <label className="block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
@@ -198,7 +186,9 @@ function SetupModal({
           </button>
           <button
             onClick={submit}
-            disabled={!name.trim()}
+            disabled={
+              !name.trim() || timeframe.length === 0 || markets_.length === 0
+            }
             className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
             style={{ backgroundColor: color, color: "#000" }}
           >

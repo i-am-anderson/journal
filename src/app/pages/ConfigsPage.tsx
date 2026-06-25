@@ -7,6 +7,7 @@ import {
   Globe,
   Palette,
   Heart,
+  Flag,
   CheckSquare,
 } from "lucide-react";
 
@@ -56,18 +57,30 @@ export default function ConfigsPage({
     reset: () => void,
   ) => {
     const trimmed = val.trim();
-    if (!trimmed || list.includes(trimmed)) return;
+    if (!trimmed) return;
+    // Dedup case-insensitive: sem isso, "Ganancioso" e "ganancioso" entram
+    // como duas emoções diferentes e fragmentam os dados nos relatórios.
+    const isDuplicate = list.some(
+      (item) => item.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (isDuplicate) return;
     setter([...list, trimmed]);
     reset();
   };
 
+  // minCount evita zerar listas das quais outras telas dependem ter pelo
+  // menos 1 opção (ex: o modal de Setup usa colors[0] como cor padrão).
   const handleRemove = (
     val: string,
     list: string[],
     setter: (l: string[]) => void,
+    minCount: number = 0,
   ) => {
+    if (list.length <= minCount) return;
     setter(list.filter((item) => item !== val));
   };
+
+  const isValidHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(newColor.trim());
 
   const inputClasses =
     "flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-400/40";
@@ -96,13 +109,17 @@ export default function ConfigsPage({
             </h3>
           </div>
           <p className="text-xs text-muted-foreground mb-4">
-            Rename or translate the days of the week.
+            Rename or translate the days of the week. O índice segue o padrão JS
+            (0 = domingo) — usado internamente pelos gráficos.
           </p>
           <div className="space-y-2">
             {days.map((day, idx) => (
               <div key={idx} className="flex items-center gap-3">
                 <span className="text-[10px] font-mono text-muted-foreground w-4">
                   {idx}
+                </span>
+                <span className="text-[9px] font-mono text-muted-foreground/40 w-8">
+                  {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][idx]}
                 </span>
                 <input
                   type="text"
@@ -157,8 +174,14 @@ export default function ConfigsPage({
               >
                 {tf}
                 <button
-                  onClick={() => handleRemove(tf, timeframes, setTimeframes)}
-                  className="text-muted-foreground hover:text-red-400"
+                  onClick={() => handleRemove(tf, timeframes, setTimeframes, 1)}
+                  disabled={timeframes.length <= 1}
+                  title={
+                    timeframes.length <= 1
+                      ? "Mantenha pelo menos 1 timeframe"
+                      : undefined
+                  }
+                  className="text-muted-foreground hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
                 >
                   <X size={12} />
                 </button>
@@ -207,8 +230,14 @@ export default function ConfigsPage({
               >
                 {m}
                 <button
-                  onClick={() => handleRemove(m, markets, setMarkets)}
-                  className="text-muted-foreground hover:text-red-400"
+                  onClick={() => handleRemove(m, markets, setMarkets, 1)}
+                  disabled={markets.length <= 1}
+                  title={
+                    markets.length <= 1
+                      ? "Mantenha pelo menos 1 mercado"
+                      : undefined
+                  }
+                  className="text-muted-foreground hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
                 >
                   <X size={12} />
                 </button>
@@ -222,10 +251,10 @@ export default function ConfigsPage({
           <div className="flex items-center gap-2 mb-4 text-amber-400">
             <Palette size={18} />
             <h3 className="font-semibold text-sm text-foreground">
-              Setup Colors
+              Setup & Strategy Colors
             </h3>
           </div>
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-1">
             <input
               type="color"
               value={newColor}
@@ -239,6 +268,7 @@ export default function ConfigsPage({
               className={inputClasses}
               onKeyDown={(e) =>
                 e.key === "Enter" &&
+                isValidHex &&
                 handleAdd(newColor, colors, setColors, () =>
                   setNewColor("#ffffff"),
                 )
@@ -250,12 +280,18 @@ export default function ConfigsPage({
                   setNewColor("#ffffff"),
                 )
               }
+              disabled={!isValidHex}
               className={btnClasses}
             >
               <Plus size={14} /> Add
             </button>
           </div>
-          <div className="flex flex-wrap gap-3">
+          {newColor && !isValidHex && (
+            <p className="text-[10px] text-red-400 mb-3">
+              Formato inválido — use #RRGGBB ou #RGB
+            </p>
+          )}
+          <div className={`flex flex-wrap gap-3 ${!isValidHex ? "mt-3" : ""}`}>
             {colors.map((c) => (
               <div key={c} className="relative group">
                 <div
@@ -264,8 +300,12 @@ export default function ConfigsPage({
                   title={c}
                 />
                 <button
-                  onClick={() => handleRemove(c, colors, setColors)}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => handleRemove(c, colors, setColors, 1)}
+                  disabled={colors.length <= 1}
+                  title={
+                    colors.length <= 1 ? "Mantenha pelo menos 1 cor" : undefined
+                  }
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none"
                 >
                   <X size={10} />
                 </button>
@@ -274,20 +314,20 @@ export default function ConfigsPage({
           </div>
         </div>
 
-        {/* ERROS E EMOÇÕES */}
+        {/* ERROR TAGS */}
         <div className="bg-card border border-border rounded-xl p-6 flex flex-col">
           <div className="flex items-center gap-2 mb-4 text-red-400">
-            <Heart size={18} />
+            <Flag size={18} />
             <h3 className="font-semibold text-sm text-foreground">
-              Trading Tags & Sentiment
+              Error Tags
             </h3>
           </div>
 
-          {/* Error Tags */}
-          <div className="mb-6">
-            <label className="text-xs text-muted-foreground block mb-2">
-              Error Tags
-            </label>
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">
+              Marcadores de erro registrados em cada trade — usados na Journal e
+              na Stats para identificar padrões.
+            </p>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -329,12 +369,19 @@ export default function ConfigsPage({
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Emotions */}
+        {/* EMOTIONS */}
+        <div className="bg-card border border-border rounded-xl p-6 flex flex-col">
+          <div className="flex items-center gap-2 mb-4 text-blue-400">
+            <Heart size={18} />
+            <h3 className="font-semibold text-sm text-foreground">Emotions</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-2">
+            Estado emocional registrado em cada trade — cruzado com P&L na Stats
+            pra ver o que custa caro.
+          </p>
           <div>
-            <label className="text-xs text-muted-foreground block mb-2">
-              Emotions
-            </label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"

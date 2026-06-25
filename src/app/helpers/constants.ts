@@ -17,10 +17,11 @@ export const DAYS = [
 export const TIMEFRAMES = ["1m", "5m", "10m", "15m", "1h", "4h", "D", "S", "M"];
 
 export const MARKETS = [
+  "Índice",
+  "Dólar",
   "Ações",
   "Cripto",
   "Forex",
-  "Futuros",
   "Opções",
   "Todas",
 ];
@@ -74,7 +75,7 @@ export const EMOTIONS = [
 export const DEFAULT_STRATEGIES: Strategy[] = [
   {
     id: "mqji7wmds41r1jg0rq8",
-    name: "Ichimoku Price Action Fusion (IPAF 10M)",
+    name: "Ichimoku Kinko Hyo",
     description:
       "Combina o rastreamento de tendência e o equilíbrio de mercado do Ichimoku Kinko Hyo com o timing preciso de gatilhos de Price Action no gráfico de 10 minutos.",
     principles: [
@@ -113,8 +114,8 @@ export const DEFAULT_SETUPS: Setup[] = [
       "Entrada na violação da máxima do candle 3 (ou no seu fechamento).",
       "Stop Loss abaixo da mínima do candle 2 e Alvo mínimo de 2:1.",
     ],
-    timeframe: "10m",
-    markets: "Índice / Dólar / Ações",
+    timeframe: ["10m"],
+    markets: ["Índice", "Dólar", "Ações"],
     color: "#34d399",
   },
   {
@@ -128,8 +129,8 @@ export const DEFAULT_SETUPS: Setup[] = [
       "Entrada na violação da mínima do candle 3 (ou no seu fechamento).",
       "Stop Loss acima da máxima do candle 2 e Alvo mínimo de 2:1.",
     ],
-    timeframe: "10m",
-    markets: "Índice / Dólar / Ações",
+    timeframe: ["10m"],
+    markets: ["Índice", "Dólar", "Ações"],
     color: "#60a5fa",
   },
   {
@@ -144,8 +145,8 @@ export const DEFAULT_SETUPS: Setup[] = [
       "O teste de mínima deve ocorrer sobre uma zona de suporte relevante do Ichimoku.",
       "Entrada no fechamento deste candle ou 1 tick acima de sua máxima, com stop abaixo de sua mínima.",
     ],
-    timeframe: "10m",
-    markets: "Índice / Dólar / Ações",
+    timeframe: ["10m"],
+    markets: ["Índice", "Dólar", "Ações"],
     color: "#f59e0b",
   },
   {
@@ -160,8 +161,8 @@ export const DEFAULT_SETUPS: Setup[] = [
       "O teste de máxima deve ocorrer sobre uma zona de resistência relevante do Ichimoku.",
       "Entrada no fechamento deste candle ou 1 tick abaixo de sua mínima, com stop acima de sua máxima.",
     ],
-    timeframe: "10m",
-    markets: "Índice / Dólar / Ações",
+    timeframe: ["10m"],
+    markets: ["Índice", "Dólar", "Ações"],
     color: "#a78bfa",
   },
   {
@@ -175,8 +176,8 @@ export const DEFAULT_SETUPS: Setup[] = [
       "Entrada no rompimento da barra mãe na direção da tendência principal ditada pelo Ichimoku.",
       "Stop do lado oposto da barra mãe (mais seguro) ou da barra interna (mais agressivo). Alvo de 2:1.",
     ],
-    timeframe: "10m",
-    markets: "Índice / Dólar / Ações",
+    timeframe: ["10m"],
+    markets: ["Índice", "Dólar", "Ações"],
     color: "#f87171",
   },
   {
@@ -190,9 +191,59 @@ export const DEFAULT_SETUPS: Setup[] = [
       "Entrada no fechamento do segundo candle.",
       "Stop posicionado acima/abaixo do extremo da estrutura de duas barras. Alvo mínimo de 2:1.",
     ],
-    timeframe: "10m",
-    markets: "Índice / Dólar / Ações",
+    timeframe: ["10m"],
+    markets: ["Índice", "Dólar", "Ações"],
     color: "#38bdf8",
+  },
+  {
+    id: "mqji7y8f3k912hxnup03",
+    name: "OCO (Ombro-Cabeça-Ombro)",
+    description:
+      "Padrão clássico de reversão baixista formado após uma tendência de alta: três picos consecutivos, sendo o do meio (a cabeça) o mais alto, e os dois ombros com altura semelhante entre si. A confirmação ocorre com o rompimento da linha de pescoço, traçada conectando as mínimas entre os picos.",
+    rules: [
+      "Confirmar a existência de uma tendência de alta anterior — sem ela, o padrão não é válido como reversão.",
+      "Identificar os três picos: ombro esquerdo, cabeça (o mais alto dos três) e ombro direito (altura próxima ao ombro esquerdo, porém menor que a cabeça).",
+      "Traçar a linha de pescoço conectando as duas mínimas formadas entre os picos (pode ser horizontal ou inclinada).",
+      "Validar o rompimento da linha de pescoço com fechamento abaixo dela, idealmente acompanhado de aumento de volume.",
+      "Entrada no rompimento confirmado da linha de pescoço, ou no reteste dela como resistência.",
+      "Stop Loss acima do topo do ombro direito. Alvo mínimo: distância vertical entre o topo da cabeça e a linha de pescoço, projetada para baixo a partir do rompimento.",
+    ],
+    timeframe: ["D"],
+    markets: ["Índice", "Cripto", "Ações"],
+    color: "#f87171",
+  },
+  {
+    id: "mqji7zg1m825qwtbcn04",
+    name: 'Fundo Duplo ("W")',
+    description:
+      "Padrão clássico de reversão altista formado ao fim de uma tendência de baixa estendida: dois fundos consecutivos de altura semelhante, separados por um pico intermediário moderado. A confirmação ocorre com o rompimento, em volume, da resistência marcada por esse pico.",
+    rules: [
+      "Confirmar a existência de uma tendência de baixa anterior significativa — sem ela, o padrão não é válido como reversão.",
+      "Identificar o primeiro fundo, marcando a mínima da tendência atual, seguido por um avanço de volume fraco até um topo intermediário.",
+      "Identificar o segundo fundo, formado próximo ao nível do primeiro (variação de até ~3% é aceitável), geralmente com volume menor que o do primeiro.",
+      "Validar o rompimento da resistência marcada pelo topo intermediário, com fechamento acima dela e aumento de volume.",
+      "Entrada no rompimento confirmado da resistência, ou no reteste dela como suporte.",
+      "Stop Loss abaixo do segundo fundo. Alvo mínimo: distância vertical entre o topo intermediário e os fundos, projetada para cima a partir do rompimento.",
+    ],
+    timeframe: ["D"],
+    markets: ["Índice", "Cripto", "Ações"],
+    color: "#4ade80",
+  },
+  {
+    id: "mqji804hn631rzkdyo05",
+    name: "Triângulo Descendente",
+    description:
+      "Padrão de viés baixista definido (diferente do simétrico, neutro): uma linha de suporte horizontal — testada repetidamente no mesmo nível — combinada com uma linha de resistência descendente, formada por topos cada vez mais baixos, evidenciando pressão vendedora crescente. A confirmação ocorre no rompimento, em volume, da linha de suporte horizontal.",
+    rules: [
+      "Identificar a linha de suporte horizontal, testada ao menos 2 vezes aproximadamente no mesmo nível (mínimas).",
+      "Identificar a linha de resistência descendente, conectando ao menos 2 topos consecutivamente mais baixos.",
+      "Confirmar a queda de volume conforme o triângulo se estreita em direção ao vértice — o rompimento ideal ocorre entre 50% e 75% da distância até o vértice.",
+      "Entrada no rompimento da linha de suporte horizontal, com fechamento abaixo dela e expansão de volume.",
+      "Stop Loss acima do último topo descendente (resistência). Alvo mínimo: altura vertical do triângulo (da linha de suporte até o primeiro topo), projetada para baixo a partir do rompimento.",
+    ],
+    timeframe: ["D"],
+    markets: ["Índice", "Cripto", "Ações"],
+    color: "#fb923c",
   },
 ];
 

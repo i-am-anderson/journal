@@ -56,8 +56,8 @@ export type Setup = {
   color: string;
   description: string;
   rules: string[];
-  timeframe: string;
-  markets: string;
+  timeframe: string[];
+  markets: string[];
 };
 
 export type Strategy = {
@@ -318,4 +318,12 @@ export type DefaultPlanProps = {
 export type TradingPlanPageProps = {
   tradingPlan: DefaultPlanProps;
   setTradingPlan: React.Dispatch<React.SetStateAction<DefaultPlanProps>>;
+};
+
+export type MultiSelectComboboxProps = {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
 };
